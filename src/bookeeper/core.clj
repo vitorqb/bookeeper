@@ -6,7 +6,7 @@
             [honeysql.helpers :as sqlhelpers]
             [clojure.java.jdbc :as jdbc]))
 
-(declare query-all-books)
+(declare query-all-books query execute!)
 
 ;;
 ;; Settings
@@ -47,34 +47,31 @@
 ;;
 (defn create-book-sql
   [{title :title}]
-  (sql/format (sql/build {:insert-into :books :values [{:title title}]})))
-  
-  ;; (-> (sqlhelpers/insert-into :books)
-  ;;     (sqlhelpers/values [{:title title}])
-  ;;     sql/format))
+  (-> {:insert-into :books :values [{:title title}]}
+      sql/build
+      sql/format))
 
 (defn create-book
   [book-spec]
-  (->> book-spec
-       (create-book-sql)
-       (jdbc/execute! db)))
+  (-> book-spec create-book-sql execute!))
+
+(defn query-all-books-sql
+  []
+  (-> {:select :* :from :books} sql/build sql/format))
 
 (defn query-all-books
   []
-  (-> (sqlhelpers/select :*)
-      (sqlhelpers/from :books)
-      (sql/format)
-      (->> (jdbc/query db))))
+  (-> (query-all-books-sql) query))
 
 (defn delete-book-sql
   [{pk :pk}]
-  (-> (sqlhelpers/delete-from :books)
-      (sqlhelpers/where [:= :pk pk])
-      (sql/format)))
+  (-> {:delete-from :books :where [:= :pk pk]}
+      sql/build
+      sql/format))
 
 (defn delete-book
   [book]
-  (->> book (delete-book-sql) (jdbc/execute! db)))
+  (-> book delete-book-sql execute!))
 
 ;; 
 ;; db-related stuff
@@ -88,3 +85,6 @@
 
 (defn rollback []
   (ragtime.repl/rollback (load-config)))
+
+(defn query [x] (jdbc/query db x))
+(defn execute! [x] (jdbc/execute! db x))

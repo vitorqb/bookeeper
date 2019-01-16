@@ -27,7 +27,11 @@
       (is (= @query-arg (create-book-sql {:title "Hola"}))))))
         
 
+(deftest test-query-all-books-sql
+  (testing "Base"
+    (is (= (query-all-books-sql) ["SELECT * FROM books"]))))
 
+  
 (deftest test-query-all-books
   (testing "Makes correcy query"
     (let [args (atom [])]

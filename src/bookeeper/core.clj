@@ -1,7 +1,7 @@
 (ns bookeeper.core
   (:gen-class)
-  (:require [ragtime.jdbc :as ragtime-jdcb]
-            [ragtime.repl :as repl]
+  (:require [ragtime.jdbc]
+            [ragtime.repl]
             [honeysql.core :as sql]
             [honeysql.helpers :as sqlhelpers]
             [clojure.java.jdbc :as jdbc]))
@@ -46,21 +46,20 @@
 ;; Bussiness Logic
 ;;
 (defn create-book-sql
-  "Returns the sql to insert a new book in the db"
   [{title :title}]
-  (-> (sqlhelpers/insert-into :books)
-      (sqlhelpers/values [{:title title}])
-      sql/format))
+  (sql/format (sql/build {:insert-into :books :values [{:title title}]})))
+  
+  ;; (-> (sqlhelpers/insert-into :books)
+  ;;     (sqlhelpers/values [{:title title}])
+  ;;     sql/format))
 
 (defn create-book
-  "Creates a new book in the database!"
   [book-spec]
   (->> book-spec
        (create-book-sql)
        (jdbc/execute! db)))
 
 (defn query-all-books
-  "Returns all books from the db"
   []
   (-> (sqlhelpers/select :*)
       (sqlhelpers/from :books)
@@ -81,11 +80,11 @@
 ;; db-related stuff
 ;; 
 (defn load-config []
-  {:datastore  (ragtime-jdcb/sql-database db)
-   :migrations (ragtime-jdcb/load-resources "migrations")})
+  {:datastore  (ragtime.jdbc/sql-database db)
+   :migrations (ragtime.jdbc/load-resources "migrations")})
 
 (defn migrate []
-  (repl/migrate (load-config)))
+  (ragtime.repl/migrate (load-config)))
 
 (defn rollback []
-  (repl/rollback (load-config)))
+  (ragtime.repl/rollback (load-config)))

@@ -1,6 +1,7 @@
 (ns bookeeper.core-test
   (:require [clojure.test :refer :all]
-            [bookeeper.core :refer :all]))
+            [bookeeper.core :refer :all]
+            [clojure.string :as str]))
 
 (deftest test-getenv-or-error
   (testing "Returns when getenv returns"
@@ -43,13 +44,43 @@
 
 (deftest test-delete-book-sql
   (testing "Base"
-    (is (= ["DELETE FROM books WHERE pk = ?" 1] (delete-book-sql {:pk 1})))))
+    (is (= ["DELETE FROM books WHERE id = ?" 1] (delete-book-sql {:id 1})))))
 
 
 (deftest test-delete-book
   (testing "Makes correct query"
     (let [args (atom [])
-          book {:pk 1 :title "A"}]
+          book {:id 1 :title "A"}]
       (with-redefs [clojure.java.jdbc/execute! #(reset! args [%1 %2])]
         (delete-book book))
       (is (= @args [db (delete-book-sql book)])))))
+
+
+(deftest test-book-to-repr
+  (testing "Base"
+    (is (= (book-to-repr {:id 12 :title "A book title"})
+           "[12] A book title"))))
+
+
+(deftest test-functional-query-all-books
+  ;; Clears books from db
+  (->> (query-all-books) (run! delete-book))
+
+  ;; Insert three books
+  (->> ["Book 1" "Book 2" "Three"]
+       (map #(assoc {} :title %))
+       (run! create-book))
+
+  (testing "Calling query books from main"
+    (let [print-args (atom ())]
+      (with-redefs [doprint #(swap! print-args conj %)]
+        (-main "query-books"))
+      (is (= (sort @print-args) (->> (query-all-books) (map book-to-repr)))))))
+
+
+(deftest test-functional-unkown-command
+  (testing "Calling unkown command"
+    (let [print-args (atom ())]
+      (with-redefs [doprint #(swap! print-args conj %)]
+        (-main "unkown__command"))
+      (is (str/starts-with? (first @print-args) "Unkown command 'unkown__command'")))))

@@ -1,0 +1,18 @@
+* Bookeeper
+
+** Development
+
+*** Starting a nrepl
+    
+    A shortcut to start a nrepl session for completion (with cider) is:
+
+#+BEGIN_EXAMPLE
+;; file: $HOME/.lein/profiles.clj
+{:repl {:plugins [[cider/cider-nrepl "0.20.0"]]}}
+#+END_EXAMPLE
+
+#+BEGIN_EXAMPLE
+lein start-repl-server
+#+END_EXAMPLE
+
+   Them, from emacs, ~cider-connect~ and select host 127.0.0.1 and port 4123.

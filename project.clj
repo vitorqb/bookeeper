@@ -11,4 +11,5 @@
                  [honeysql "0.9.4"]]
   :main ^:skip-aot bookeeper.core
   :target-path "target/%s"
-  :profiles {:uberjar {:aot :all}})
+  :profiles {:uberjar {:aot :all}}
+  :aliases {"start-repl-server" ["repl" ":headless" ":host" "127.0.0.1" ":port" "4123"]})

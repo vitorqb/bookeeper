@@ -16,3 +16,17 @@ lein start-repl-server
 #+END_EXAMPLE
 
    Them, from emacs, ~cider-connect~ and select host 127.0.0.1 and port 4123.
+
+*** Migrations
+
+    A shortcut to run migrations is
+
+#+BEGIN_EXAMPLE
+$ lein migrate
+#+END_EXAMPLE
+
+    And to rollback
+
+#+BEGIN_EXAMPLE
+$ lein rollback
+#+END_EXAMPLE

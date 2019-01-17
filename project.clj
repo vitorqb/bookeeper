@@ -12,4 +12,6 @@
   :main ^:skip-aot bookeeper.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}}
-  :aliases {"start-repl-server" ["repl" ":headless" ":host" "127.0.0.1" ":port" "4123"]})
+  :aliases {"start-repl-server" ["repl" ":headless" ":host" "127.0.0.1" ":port" "4123"]
+            "migrate" ["run" "-m" "bookeeper.core/migrate"]
+            "rollback" ["run" "-m" "bookeeper.core/rollback"]})

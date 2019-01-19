@@ -9,9 +9,9 @@
             [clojure.java.jdbc :as jdbc]))
 
 
-(declare query-all-books query execute! get-handler query-books-handler
+(declare query-book query-all-books query execute! get-handler query-books-handler
          unkown-command-handler doprint book-to-repr add-book-handler
-         create-book)
+         create-book get-time-spent time-spent-handler)
 
 ;;
 ;; System Helpers
@@ -52,7 +52,10 @@
     :required-keys [:title]}
    {:cmd-name      "query-books"
     :cmd-spec      []
-    :required-keys []}])
+    :required-keys []}
+   {:cmd-name      "time-spent"
+    :cmd-spec      [["-t" "--book-title BOOK_TITLE" "Book title"]]
+    :required-keys [:book-title]}])
 
 (defn -main
   "I don't do a whole lot ... yet."
@@ -66,17 +69,27 @@
 ;;
 ;; Cli parser helpers
 ;;
+;; !!!! TODO -> Allow handlers to return nil (everything went fine) or
+;; !!!!         {:ok? ... :exit-message ...}
 (defn get-handler [cmd]
   "Returns a handler for a command"
   (case cmd
     "query-books" query-books-handler
-    "add-book"    add-book-handler))
+    "add-book"    add-book-handler
+    "time-spent"  time-spent-handler))
 
 (defn query-books-handler [{}]
   (->> (query-all-books) (map book-to-repr) sort (run! doprint)))
 
 (defn add-book-handler [{title :title}]
   (create-book {:title title}))
+
+(defn time-spent-handler [{book-title :book-title}]
+  (-> book-title
+      #(query-book {:title %})
+      get-time-spent
+      str
+      doprint))
 
 ;;
 ;; Bussiness Logic
@@ -87,17 +100,21 @@
       sql/build
       sql/format))
 
-(defn create-book
-  [book-spec]
-  (-> book-spec create-book-sql execute!))
+(def create-book #(-> % create-book-sql execute!))
 
-(defn query-all-books-sql
-  []
-  (-> {:select :* :from :books} sql/build sql/format))
+(defn query-book-sql
+  [{id :id title :title}]
+  (cond-> {:select :* :from :books}
+    id    (sqlhelpers/where [:= :id id])
+    title (sqlhelpers/where [:= :title title])
+    true  sql/build
+    true  sql/format))
 
-(defn query-all-books
-  []
-  (-> (query-all-books-sql) query))
+(def query-book #(-> % query-book-sql query))
+
+(def query-all-books-sql #(-> {:select :* :from :books} sql/build sql/format))
+
+(def query-all-books #(-> (query-all-books-sql) query))
 
 (defn delete-book-sql
   [{id :id}]
@@ -105,13 +122,16 @@
       sql/build
       sql/format))
 
-(defn delete-book
-  [book]
-  (-> book delete-book-sql execute!))
+(def delete-book #(-> % delete-book-sql execute!))
 
 (defn book-to-repr
   [{id :id title :title}]
   (format "[%s] %s" id title))
+
+(defn get-time-spent
+  "Returns the time spent for a book"
+  [{:keys [id title] :as book}]
+  20)
 
 ;; 
 ;; db-related stuff

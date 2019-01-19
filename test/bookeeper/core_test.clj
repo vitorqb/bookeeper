@@ -81,11 +81,27 @@
         (delete-book book))
       (is (= @args [db (delete-book-sql book)])))))
 
+(deftest test-query-book
+  (testing "With id"
+    (is (= ["SELECT * FROM books WHERE id = ?" 1]
+           (query-book-sql {:id 1}))))
+  (testing "With title"
+    (is (= ["SELECT * FROM books WHERE title = ?" "mytitle"]
+           (query-book-sql {:title "mytitle"})))))
 
 (deftest test-book-to-repr
   (testing "Base"
     (is (= (book-to-repr {:id 12 :title "A book title"})
            "[12] A book title"))))
+
+(deftest test-functional-time-spen
+  (testing "Calls time-spent-handler"
+    (with-ignore-doprint
+      (let [time-spent-handler-calls-args (atom ())]
+        (with-redefs [time-spent-handler #(swap! time-spent-handler-calls-args conj %)]
+          (-main "time-spent" "--book-title" "MyBook"))
+        (is (= 1 (count @time-spent-handler-calls-args)))
+        (is (= {:book-title "MyBook"} (first @time-spent-handler-calls-args)))))))
 
 (deftest test-functional-query-all-books
   ;; Clears books from db
@@ -117,7 +133,7 @@
   (testing "Adds a new book")
   ;; Clear books from db
   (->> (query-all-books) (run! delete-book))
-  (with-redefs [exit (constantly nil)]
+  (with-redefs [exit (fn [_ msg] (doprint msg))]
     (let [title     "My Book"
           date      (java-time/local-date 2018 11 23)
           durations [(* 30 60) (* 30 30)]]
@@ -129,8 +145,8 @@
          #(-main "read-book" "--title" title "--date" date "--duration" %)
          durations))
       ;; Check it was read
-      (let [read-output (with-capture-doprint (-main "time-spent" "--book-title" title))]
-        (is (= (Integer/parseInt read-output)
+      (let [read-output (extract-doprint-from (-main "time-spent" "--book-title" title))]
+        (is (= (-> read-output first Integer/parseInt)
                (reduce + durations)))))))
 
 

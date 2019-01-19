@@ -1,4 +1,5 @@
-(ns bookeeper.helpers)
+(ns bookeeper.helpers
+  (:require [java-time]))
 
 ;;
 ;; System Helpers
@@ -24,3 +25,15 @@
   (doprint (format "ERROR: %s" msg))
   (System/exit code))
 
+
+;;
+;; Date Helpers
+;;
+(def default-date-format
+  "The default date-format to use (as of java-time/format)"
+  "yyyy-MM-dd")
+
+(defn date-to-str
+  "Converts a java-time/local-date to str."
+  [x]
+  (java-time/format default-date-format x))

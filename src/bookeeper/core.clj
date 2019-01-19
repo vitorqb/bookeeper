@@ -12,14 +12,11 @@
             [clojure.java.jdbc :as jdbc])
   (:import [java.time LocalDate]))
 
-
 (declare query-book query-all-books query execute! get-handler query-books-handler
          unkown-command-handler book-to-repr add-book-handler
          create-book get-time-spent time-spent-handler query-reading-sessions-handler
          reading-session-to-repr query-all-reading-sessions read-book-handler
          create-reading-session)
-
-(def db-subname (getenv-or-error "BOOKEEPER_DB_FILE"))
 
 ;;
 ;; Globals
@@ -27,7 +24,7 @@
 (def db
   {:classname   "org.sqlite.JDBC"
    :subprotocol "sqlite"
-   :subname     db-subname})
+   :subname     (getenv-or-error "BOOKEEPER_DB_FILE")})
 
 
 ;;
@@ -166,7 +163,7 @@
   [{:keys [date book_id duration]}]
   (format "[%s] [%s] [%s]"
           ;; !!!! -> standard format date function
-          (java-time/format "yyyy-MM-dd" date)
+          (date-to-str date)
           book_id
           duration))
 
@@ -210,4 +207,4 @@
 ;;
 (extend-protocol honeysql.format/ToSql
   LocalDate
-  (to-sql [v] (honeysql.format/to-sql (java-time/format "yyyy-MM-dd" v))))
+  (to-sql [v] (honeysql.format/to-sql (date-to-str v))))

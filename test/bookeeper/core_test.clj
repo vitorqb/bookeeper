@@ -156,19 +156,18 @@
     (clear-books-and-reading-sessions)
     (let [title "Book1"
           date (java-time/local-date 2018 1 1)
-          formatted-date (java-time/format "yyyy-MM-dd" date)
           duration 300]
       (create-book {:title title})
       (with-redefs [exit (fn [_ msg] (doprint msg))]
         ;; The user adds a read-book session
         (-main "read-book"
                "--book-title" title
-               "--date" formatted-date
+               "--date" (date-to-str date)
                "--duration" duration)
         ;; And sees it when he queries
         (let [resp (extract-doprint-from (-main "query-reading-sessions"))]
           (is (= 1 (count resp)))
-          (is (str/starts-with? (first resp) (str "[" formatted-date "]"))))))))
+          (is (str/starts-with? (first resp) (str "[" (date-to-str date) "]"))))))))
 
 (deftest test-functional-add-and-read-book
   (testing "Adds a new book"
@@ -195,16 +194,10 @@
         ;; Then add two readings
         (run!
          #(-main "read-book" "--book-title" title
-                 "--date" (java-time/format "yyyy-MM-dd" date)
+                 "--date" (date-to-str date)
                  "--duration" %)
          durations))
       ;; Check it was read
       (let [read-output (extract-doprint-from (-main "time-spent" "--book-title" title))]
         (is (= (-> read-output first Integer/parseInt)
                (reduce + durations)))))))
-
-
-;; (deftest test-functional-unkown-command
-;;   (testing "Calling unkown command"
-;;     (let [printted (extract-doprint-from (-main "unkown__command"))]
-;;       (is (str/starts-with? (first printted) "Unkown command 'unkown__command'")))))

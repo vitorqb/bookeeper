@@ -1,6 +1,7 @@
 (ns bookeeper.core
   (:gen-class)
   (:require [bookeeper.cli-parser :refer [parse-args]]
+            [bookeeper.helpers :refer :all]
             [ragtime.jdbc]
             [ragtime.repl]
             [honeysql.core :as sql]
@@ -13,25 +14,10 @@
 
 
 (declare query-book query-all-books query execute! get-handler query-books-handler
-         unkown-command-handler doprint book-to-repr add-book-handler
+         unkown-command-handler book-to-repr add-book-handler
          create-book get-time-spent time-spent-handler query-reading-sessions-handler
          reading-session-to-repr query-all-reading-sessions read-book-handler
          create-reading-session)
-
-;;
-;; System Helpers
-;;
-(defn getenv [x] "Wraps System/getenv for testing" (System/getenv x))
-
-(defn getenv-or-error
-  "Get from env or throws runtime error"
-  [x]
-  (or (getenv x)
-      (throw (RuntimeException. (str "Env var " x " not found")))))
-
-(defn exit [code msg]
-  (doprint (format "ERROR: %s" msg))
-  (System/exit code))
 
 (def db-subname (getenv-or-error "BOOKEEPER_DB_FILE"))
 
@@ -43,10 +29,6 @@
    :subprotocol "sqlite"
    :subname     db-subname})
 
-(defn doprint
-  [x]
-  "Wrapper around print (mainly for test)"
-  (println x))
 
 ;;
 ;; Main

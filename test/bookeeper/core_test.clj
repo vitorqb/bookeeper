@@ -1,6 +1,7 @@
 (ns bookeeper.core-test
   (:require [clojure.test :refer :all]
             [bookeeper.core :refer :all]
+            [bookeeper.helpers :refer :all]
             [clojure.string :as str]
             [java-time]
             [honeysql.core :as sql]))

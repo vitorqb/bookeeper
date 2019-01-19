@@ -35,9 +35,21 @@
     (is (= {:ok false :exit-message exit-message-no-command}
            (parse-args [] [] []))))
 
+  (testing "Missing arg"
+    (is (= {:ok false :exit-message "Missing options: a"}
+           (parse-args ["cmd"]
+                       []
+                       [{:cmd-name "cmd"
+                         :cmd-spec [["-a" "--arg1 ARG"]]
+                         :required-keys [:a]}]))))
+
   (testing "Unkown command"
     (is (= {:ok false :exit-message (format-unknown-cmd "unkown")}
            (parse-args ["unkown"] [] []))))
+
+  (testing "Positional args not supported"
+    (is (= {:ok false :exit-message exit-message-positional-arguments-not-supported}
+           (parse-args ["cmd" "pos"] [] [{:cmd-name "cmd" :cmd-spec []}]))))
 
   (let [name "do-this"]
 

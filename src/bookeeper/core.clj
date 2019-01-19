@@ -25,7 +25,7 @@
       (throw (RuntimeException. (str "Env var " x " not found")))))
 
 (defn exit [code msg]
-  (doprint msg)
+  (doprint (format "ERROR: %s" msg))
   (System/exit code))
 
 (def db-subname (getenv-or-error "BOOKEEPER_DB_FILE"))
@@ -47,8 +47,12 @@
 ;; Main
 ;; 
 (def main-cmd-specs
-  [{:cmd-name "add-book" :cmd-spec [["-t" "--title TITLE" "Title"]]}
-   {:cmd-name "query-books" :cmd-spec []}])
+  [{:cmd-name      "add-book"
+    :cmd-spec      [["-t" "--title TITLE" "Title"]]
+    :required-keys [:title]}
+   {:cmd-name      "query-books"
+    :cmd-spec      []
+    :required-keys []}])
 
 (defn -main
   "I don't do a whole lot ... yet."

@@ -29,13 +29,25 @@
 
 (defn parse-args-cmd
   "Parses cli arguments for a command.
-  Either returns {:err-msg ...} or {:cmd-opts ...}"
-  [args {cmd-spec :cmd-spec}]
-  (let [{:keys [options arguments errors]} (cli/parse-opts args cmd-spec)]
+  Either returns {:err-msg ...} or {:cmd-opts ...}
+  args -> array of strings to parse
+  :cmd-spec -> a parse-opts spec for this command
+  :required-keys -> an array of keys that must be in the parsed arguments list"
+  [args {cmd-spec :cmd-spec required-keys :required-keys}]
+  (let [{:keys [options arguments errors]} (cli/parse-opts args cmd-spec)
+        missing-keys (filter #((comp not contains?) options %) required-keys)]
     (cond
-      errors {:err-msg (str/join "\n" errors)}
-      (> (count arguments) 1) {:err-msg exit-message-positional-arguments-not-supported}
-      :else {:cmd-opts options})))
+      errors
+      {:err-msg (str/join "\n" errors)}
+
+      (-> missing-keys count (> 0))
+      {:err-msg (->> missing-keys (map name) str/join (format "Missing options: %s"))}
+
+      (-> arguments count (> 0))
+      {:err-msg exit-message-positional-arguments-not-supported}
+      
+      :else
+      {:cmd-opts options})))
 
 (defn parse-args
   "Parses cli arguments. Either returns {:exit-message ..., :ok? ...}

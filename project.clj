@@ -10,7 +10,8 @@
                  [ragtime "0.7.2"]
                  [honeysql "0.9.4"]
                  [clojure.java-time "0.3.2"]]
-  :main ^:skip-aot bookeeper.core
+  :aot [bookeeper.core]
+  :main bookeeper.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}}
   :aliases {"start-repl-server" ["repl" ":headless" ":host" "127.0.0.1" ":port" "4123"]

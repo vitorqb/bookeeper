@@ -179,12 +179,13 @@
   [{id :id title :title}]
   (format "[%s] %s" id title))
 
+;; !!!! TODO -> Print book title
 (defn reading-session-to-repr
-  [{:keys [date book duration]}]
+  [{:keys [date book_id duration]}]
   (format "[%s] [%s] [%s]"
           ;; !!!! -> standard format date function
           (java-time/format "yyyy-MM-dd" date)
-          (:title book)
+          book_id
           duration))
 
 (defn get-time-spent-query

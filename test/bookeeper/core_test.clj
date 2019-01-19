@@ -118,9 +118,9 @@
 
 (deftest test-reading-session-to-repr
   (testing "Base"
-    (is (= "[1993-11-23] [Some book] [444]"
+    (is (= "[1993-11-23] [2] [444]"
            (reading-session-to-repr {:date (java-time/local-date 1993 11 23)
-                                     :book {:title "Some book"}
+                                     :book_id 2
                                      :duration 444})))))
 
 (deftest test-functional-time-spent
@@ -167,8 +167,7 @@
         ;; And sees it when he queries
         (let [resp (extract-doprint-from (-main "query-reading-sessions"))]
           (is (= 1 (count resp)))
-          (is (str/starts-with? (first resp)
-                                (str "[" formatted-date "] [" title "]"))))))))
+          (is (str/starts-with? (first resp) (str "[" formatted-date "]"))))))))
 
 (deftest test-functional-add-and-read-book
   (testing "Adds a new book"

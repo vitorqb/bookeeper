@@ -1,6 +1,7 @@
 (ns bookeeper.core
   (:gen-class)
-  (:require [ragtime.jdbc]
+  (:require [bookeeper.cli-parser :refer [parse-args]]
+            [ragtime.jdbc]
             [ragtime.repl]
             [honeysql.core :as sql]
             [honeysql.helpers :as sqlhelpers]
@@ -13,7 +14,7 @@
          create-book)
 
 ;;
-;; Settings
+;; System Helpers
 ;;
 (defn getenv [x] "Wraps System/getenv for testing" (System/getenv x))
 
@@ -22,6 +23,10 @@
   [x]
   (or (getenv x)
       (throw (RuntimeException. (str "Env var " x " not found")))))
+
+(defn exit [code msg]
+  (doprint msg)
+  (System/exit code))
 
 (def db-subname (getenv-or-error "BOOKEEPER_DB_FILE"))
 
@@ -41,14 +46,18 @@
 ;;
 ;; Main
 ;; 
+(def main-cmd-specs
+  [{:cmd-name "add-book" :cmd-spec [["-t" "--title TITLE" "Title"]]}
+   {:cmd-name "query-books" :cmd-spec []}])
+
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (when (= args ())
-    (throw (RuntimeException. "No command given!")))
-  (let [[cmd & cmd-args] args
-        handler (get-handler cmd)]
-    (handler cmd cmd-args)))
+  (let [{:keys [exit-message ok? cmd-name cmd-opts]}
+        (parse-args args [] main-cmd-specs)]
+    (if exit-message
+      (exit (if ok? 0 1) exit-message)
+      ((get-handler cmd-name) cmd-opts))))
 
 ;;
 ;; Cli parser helpers
@@ -57,23 +66,13 @@
   "Returns a handler for a command"
   (case cmd
     "query-books" query-books-handler
-    "add-book"    add-book-handler
-    unkown-command-handler))
+    "add-book"    add-book-handler))
 
-(defn unkown-command-handler [cmd _]
-  (->> cmd (format "Unkown command '%s'") doprint))
-
-(defn query-books-handler [_ args]
+(defn query-books-handler [{}]
   (->> (query-all-books) (map book-to-repr) sort (run! doprint)))
 
-(defn add-book-handler [_ args]
-  (let [parsed-args (cli/parse-opts args [["-t" "--title" "Title"]])]
-    (-> parsed-args
-        (get :options)
-        (get :title)
-        (#(do (println %) %))
-        (->> (assoc {} :title))
-        (create-book))))
+(defn add-book-handler [{title :title}]
+  (create-book {:title title}))
 
 ;;
 ;; Bussiness Logic

@@ -1,7 +1,8 @@
 (ns bookeeper.core-test
   (:require [clojure.test :refer :all]
             [bookeeper.core :refer :all]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [java-time]))
 
 ;;
 ;; Helpers
@@ -10,6 +11,12 @@
   "Evaluates body, captures all calls to doprint and sets it to atom."
   [capture-atom & body]
   `(with-redefs [doprint #(swap! ~capture-atom conj %)]
+     ~@body))
+
+(defmacro with-ignore-doprint
+  "Evaluates body, ignore the sideeffect of all doprint calls."
+  [& body]
+  `(with-redefs [doprint (constantly nil)]
      ~@body))
 
 (defmacro extract-doprint-from
@@ -25,7 +32,7 @@
 (deftest test-getenv-or-error
   (testing "Returns when getenv returns"
     (with-redefs [getenv (constantly "hola")]
-      (is (= (getenv-or-error "a")) "hola")))
+      (is (= (getenv-or-error "a") "hola"))))
   (testing "Throws error if getenv returns nil"
     (with-redefs [getenv (constantly nil)]
       (is (thrown? RuntimeException (getenv-or-error "a"))))))
@@ -90,24 +97,44 @@
        (run! create-book))
 
   (testing "Calling query books from main"
-    (let [result (extract-doprint-from (-main "query-books"))
-          expect (->> (query-all-books) (map book-to-repr))]
-      (is (= (sort result) (sort expect))))))
+    (with-redefs [exit (fn [_ msg] (doprint msg))]
+      (let [result (-> (extract-doprint-from (-main "query-books")) sort)
+            expect (->> (query-all-books) (map book-to-repr) sort)]
+        (is (= result expect))))))
 
-(deftest test-functional-read-book
-  ;; Clears books from db
-  (->> (query-all-books) (run! delete-book))
-
+(deftest test-functional-add-and-read-book
   (testing "Adds a new book"
+    ;; Clears books from db
+    (->> (query-all-books) (run! delete-book))
     ;; Adds a new book
-    (-main "add-book" "--title" "How To Solve It")
+    (let [title "How To Solve It"
+          contains-title? #(.contains % title)]
+      (-main "add-book" "--title" title)
+      ;; And sees it in the output when querying for books
+      (let [query-books-prints (extract-doprint-from (-main "query-books"))]
+        (is (some contains-title? query-books-prints)))))
 
-    ;; And sees it in the output when querying for books
-    (let [query-books-prints (extract-doprint-from (-main "query-books"))]
-      (is (some #(.contains % "How To Solve It") query-books-prints)))))
+  (testing "Adds a new book")
+  ;; Clear books from db
+  (->> (query-all-books) (run! delete-book))
+  (with-redefs [exit (constantly nil)]
+    (let [title     "My Book"
+          date      (java-time/local-date 2018 11 23)
+          durations [(* 30 60) (* 30 30)]]
+      (with-ignore-doprint
+        ;; Adds a new book!
+        (-main "add-book" "--title" title)
+        ;; Then add two readings
+        (run!
+         #(-main "read-book" "--title" title "--date" date "--duration" %)
+         durations))
+      ;; Check it was read
+      (let [read-output (with-capture-doprint (-main "time-spent" "--book-title" title))]
+        (is (= (Integer/parseInt read-output)
+               (reduce + durations)))))))
 
 
-(deftest test-functional-unkown-command
-  (testing "Calling unkown command"
-    (let [printted (extract-doprint-from (-main "unkown__command"))]
-      (is (str/starts-with? (first printted) "Unkown command 'unkown__command'")))))
+;; (deftest test-functional-unkown-command
+;;   (testing "Calling unkown command"
+;;     (let [printted (extract-doprint-from (-main "unkown__command"))]
+;;       (is (str/starts-with? (first printted) "Unkown command 'unkown__command'")))))

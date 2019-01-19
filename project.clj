@@ -8,7 +8,8 @@
                  [org.clojure/tools.cli "0.4.1"]
                  [org.xerial/sqlite-jdbc "3.23.1"]
                  [ragtime "0.7.2"]
-                 [honeysql "0.9.4"]]
+                 [honeysql "0.9.4"]
+                 [clojure.java-time "0.3.2"]]
   :main ^:skip-aot bookeeper.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}}

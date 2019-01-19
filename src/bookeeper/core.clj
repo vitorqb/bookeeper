@@ -88,6 +88,7 @@
   (-> book-title
       #(query-book {:title %})
       get-time-spent
+      (or 0)
       str
       doprint))
 
@@ -128,10 +129,20 @@
   [{id :id title :title}]
   (format "[%s] %s" id title))
 
+(defn get-time-spent-query
+  "Returns a query withthe time spent for a book"
+  [{id :id}]
+  (-> (sqlhelpers/select [:%sum.duration :sum-duration])
+      (sqlhelpers/from   :reading-sessions)
+      (sqlhelpers/join   :books [:= :books.id :reading-sessions.book_id])
+      (sqlhelpers/where  [:= :books.id id])
+      (sql/build)
+      (sql/format)))
+
 (defn get-time-spent
-  "Returns the time spent for a book"
-  [{:keys [id title] :as book}]
-  20)
+  "Returns the time spent reading a book."
+  [book]
+  (-> book get-time-spent-query query :sum-duration (or 0)))
 
 ;; 
 ;; db-related stuff

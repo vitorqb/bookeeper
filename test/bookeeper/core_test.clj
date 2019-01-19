@@ -89,12 +89,26 @@
     (is (= ["SELECT * FROM books WHERE title = ?" "mytitle"]
            (query-book-sql {:title "mytitle"})))))
 
+(deftest test-get-time-spent
+  (testing "Makes correct query"
+    (let [query-calls (atom ())]
+      (with-redefs [query (fn [& args] (swap! query-calls conj args))]
+        (get-time-spent {:id 1}))
+      (is (= 1 (count @query-calls)))
+      (is (= (list (get-time-spent-query {:id 1})) (first @query-calls)))))
+  (testing "The query"
+    (is (= [(str "SELECT sum(duration) AS sum_duration"
+                 " FROM reading_sessions"
+                 " INNER JOIN books ON books.id = reading_sessions.book_id"
+                 " WHERE books.id = ?") 15]
+           (get-time-spent-query {:id 15})))))
+
 (deftest test-book-to-repr
   (testing "Base"
     (is (= (book-to-repr {:id 12 :title "A book title"})
            "[12] A book title"))))
 
-(deftest test-functional-time-spen
+(deftest test-functional-time-spent
   (testing "Calls time-spent-handler"
     (with-ignore-doprint
       (let [time-spent-handler-calls-args (atom ())]

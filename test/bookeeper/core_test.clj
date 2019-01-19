@@ -2,7 +2,8 @@
   (:require [clojure.test :refer :all]
             [bookeeper.core :refer :all]
             [clojure.string :as str]
-            [java-time]))
+            [java-time]
+            [honeysql.core :as sql]))
 
 ;;
 ;; Helpers
@@ -99,14 +100,28 @@
   (testing "The query"
     (is (= [(str "SELECT sum(duration) AS sum_duration"
                  " FROM reading_sessions"
-                 " INNER JOIN books ON books.id = reading_sessions.book_id"
-                 " WHERE books.id = ?") 15]
+                 " WHERE book_id = ?") 15]
            (get-time-spent-query {:id 15})))))
+
+(deftest test-create-reading-session
+  (testing "create-reading-session-sql"
+    (is (= [(str "INSERT INTO reading_sessions (date, duration, book_id) VALUES (?, ?, ?)")
+            "2018-02-02" 250 1]
+           (create-reading-session-sql {:date (java-time/local-date 2018 2 2)
+                                        :duration 250
+                                        :book {:id 1}})))))
 
 (deftest test-book-to-repr
   (testing "Base"
     (is (= (book-to-repr {:id 12 :title "A book title"})
            "[12] A book title"))))
+
+(deftest test-reading-session-to-repr
+  (testing "Base"
+    (is (= "[1993-11-23] [Some book] [444]"
+           (reading-session-to-repr {:date (java-time/local-date 1993 11 23)
+                                     :book {:title "Some book"}
+                                     :duration 444})))))
 
 (deftest test-functional-time-spent
   (testing "Calls time-spent-handler"
@@ -132,6 +147,29 @@
             expect (->> (query-all-books) (map book-to-repr) sort)]
         (is (= result expect))))))
 
+(defn clear-books-and-reading-sessions []
+  (run! #(-> {:delete-from %} sql/format execute!) [:books :reading-sessions]))
+
+(deftest test-functional-read-book
+  (testing "Base"
+    (clear-books-and-reading-sessions)
+    (let [title "Book1"
+          date (java-time/local-date 2018 1 1)
+          formatted-date (java-time/format "yyyy-MM-dd" date)
+          duration 300]
+      (create-book {:title title})
+      (with-redefs [exit (fn [_ msg] (doprint msg))]
+        ;; The user adds a read-book session
+        (-main "read-book"
+               "--book-title" title
+               "--date" formatted-date
+               "--duration" duration)
+        ;; And sees it when he queries
+        (let [resp (extract-doprint-from (-main "query-reading-sessions"))]
+          (is (= 1 (count resp)))
+          (is (str/starts-with? (first resp)
+                                (str "[" formatted-date "] [" title "]"))))))))
+
 (deftest test-functional-add-and-read-book
   (testing "Adds a new book"
     ;; Clears books from db
@@ -146,7 +184,7 @@
 
   (testing "Adds a new book")
   ;; Clear books from db
-  (->> (query-all-books) (run! delete-book))
+  (clear-books-and-reading-sessions)
   (with-redefs [exit (fn [_ msg] (doprint msg))]
     (let [title     "My Book"
           date      (java-time/local-date 2018 11 23)
@@ -156,7 +194,9 @@
         (-main "add-book" "--title" title)
         ;; Then add two readings
         (run!
-         #(-main "read-book" "--title" title "--date" date "--duration" %)
+         #(-main "read-book" "--book-title" title
+                 "--date" (java-time/format "yyyy-MM-dd" date)
+                 "--duration" %)
          durations))
       ;; Check it was read
       (let [read-output (extract-doprint-from (-main "time-spent" "--book-title" title))]

@@ -168,6 +168,31 @@
                                      :book {:title "My Book"}
                                      :duration 120})))))
 
+(deftest test-with-capturing-user-exceptions
+  (testing "Prints :user-err-msg if :capture-for-user is true"
+    (let [called-args (atom nil)
+          fake-exit (fn [code msg] (reset! called-args (list code msg)))]
+        (with-capturing-user-exceptions fake-exit
+          (throw (ex-info "" {:capture-for-user true :user-err-msg "Some error"})))
+        (is (not (nil? @called-args)))
+        (is (= 1 (first @called-args)))
+        (is (= "ERROR: Some error") (second @called-args))))
+  (testing "Actually throws if no :capture-for-user"
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (with-capturing-user-exceptions (constantly nil)
+                   (throw (ex-info "" {})))))))
+
+(deftest test-functional-tests-unkown-book
+  (testing "Unkown book on read-book"
+    (let [printted (extract-doprint-from
+                    (with-redefs [exit (fn [_ msg] (doprint msg))]
+                      (-main "read-book"
+                             "--book-title" "djskald"
+                             "--date" "2018-01-01"
+                             "--duration" "210")))]
+      (is (= (count printted) 1))
+      (is (str/starts-with? (first printted) "Book not found")))))
+
 (deftest test-functional-time-spent
   (testing "Calls time-spent-handler"
     (with-ignore-doprint

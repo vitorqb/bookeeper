@@ -58,13 +58,26 @@
     :handler       #'read-book-handler
     :required-keys [:book-title :date :duration]}])
 
+(defmacro with-capturing-user-exceptions
+  "Tries to execute body. If captures an ExceptionInfo that contains
+  {... :capture-for-user true} in its data, exits with exit-fn parsing
+  error-code 1 and the :user-err-msg from the exception data."
+  [exit-fn & body]
+  `(try ~@body
+        (catch clojure.lang.ExceptionInfo e#
+          (do
+            (when-not (:capture-for-user (ex-data e#))
+              (throw e#))
+            (~exit-fn 1 (:user-err-msg (ex-data e#)))))))
+
 (defn -main
   [& args]
   (let [{:keys [exit-message ok? cmd-name cmd-opts handler]}
         (parse-args args [] main-cmd-specs)]
     (if exit-message
       (exit (if ok? 0 1) exit-message)
-      ((get-handler cmd-name main-cmd-specs) cmd-opts))))
+      (with-capturing-user-exceptions exit
+        ((get-handler cmd-name main-cmd-specs) cmd-opts)))))
 
 ;;
 ;; Handlers
@@ -128,7 +141,11 @@
       sql/build
       sql/format))
 
-(def query-book #(-> % query-book-sql query first))
+(defn query-book
+  [spec]
+  (-> spec
+      query-book-sql
+      (query-returning-one (format "Book not found: %s" spec))))
 
 (defn delete-book-sql
   [{id :id}]

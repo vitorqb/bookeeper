@@ -25,3 +25,16 @@
 
 (defn query [x] (jdbc/query db x))
 (defn execute! [x] (jdbc/execute! db x))
+
+(defn query-returning-one
+  "Performs a query, ensuring it returns exactly one element.
+   If not, throws ex-info with err-msg and :cause :query-returned-multiple"
+  [x err-msg]
+  (let [query-result (first (query x))]
+    (when-not query-result
+      (throw (ex-info (format "No results returned for\n%s" x)
+                      {:capture-for-user true
+                       :user-err-msg err-msg})))
+    query-result))
+            
+            

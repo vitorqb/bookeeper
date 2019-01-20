@@ -39,13 +39,21 @@
     (with-redefs [getenv (constantly nil)]
       (is (thrown? RuntimeException (getenv-or-error "a"))))))
 
-
+(deftest test-get-handler
+  (testing "Base"
+    (is (= (get-handler "cmd1" [{:cmd-name "cmd1" :handler :SENTINEL}])
+           :SENTINEL)))
+  (testing "Not found throws error"
+    (is (thrown? RuntimeException (get-handler "cmd1" []))))
+  (testing "Multiple throws error"
+    (is (thrown? RuntimeException
+                 (get-handler "cmd2" [{:cmd-name "cmd2" :handler 1}
+                                      {:cmd-name "cmd2" :handler 2}])))))
 
 (deftest test-create-book-sql
   (testing "Base"
     (is (= (create-book-sql {:title "Book One"})
            ["INSERT INTO books (title) VALUES (?)" "Book One"]))))
-
 
 (deftest test-create-book
   (testing "Makes correct query"
@@ -163,7 +171,7 @@
         (-main "read-book"
                "--book-title" title
                "--date" (date-to-str date)
-               "--duration" duration)
+               "--duration" (str duration))
         ;; And sees it when he queries
         (let [resp (extract-doprint-from (-main "query-reading-sessions"))]
           (is (= 1 (count resp)))
@@ -195,7 +203,7 @@
         (run!
          #(-main "read-book" "--book-title" title
                  "--date" (date-to-str date)
-                 "--duration" %)
+                 "--duration" (str %))
          durations))
       ;; Check it was read
       (let [read-output (extract-doprint-from (-main "time-spent" "--book-title" title))]

@@ -37,3 +37,8 @@
   "Converts a java-time/local-date to str."
   [x]
   (java-time/format default-date-format x))
+
+(defn str-to-date
+  "Converts a string in default-date-format to a date"
+  [x]
+  (java-time/local-date default-date-format x))

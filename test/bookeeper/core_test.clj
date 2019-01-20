@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [bookeeper.core :refer :all]
             [bookeeper.helpers :refer :all]
+            [bookeeper.db :refer :all]
             [clojure.string :as str]
             [java-time]
             [honeysql.core :as sql]))

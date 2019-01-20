@@ -2,29 +2,19 @@
   (:gen-class)
   (:require [bookeeper.cli-parser :refer [parse-args]]
             [bookeeper.helpers :refer :all]
-            [ragtime.jdbc]
-            [ragtime.repl]
+            [bookeeper.db :refer :all]
             [honeysql.core :as sql]
             [honeysql.helpers :as sqlhelpers]
             [honeysql.format]
             [java-time]
-            [clojure.tools.cli :as cli]
-            [clojure.java.jdbc :as jdbc])
+            [clojure.tools.cli :as cli])
   (:import [java.time LocalDate]))
 
-(declare query-book query-all-books query execute! get-handler query-books-handler
+(declare query-book query-all-books get-handler query-books-handler
          unkown-command-handler book-to-repr add-book-handler
          create-book get-time-spent time-spent-handler query-reading-sessions-handler
          reading-session-to-repr query-all-reading-sessions read-book-handler
          create-reading-session)
-
-;;
-;; Globals
-;;
-(def db
-  {:classname   "org.sqlite.JDBC"
-   :subprotocol "sqlite"
-   :subname     (getenv-or-error "BOOKEEPER_DB_FILE")})
 
 ;;
 ;; Main
@@ -222,22 +212,6 @@
       first
       :sum_duration
       (or 0)))
-
-;; 
-;; db-related stuff
-;; 
-(defn load-config []
-  {:datastore  (ragtime.jdbc/sql-database db)
-   :migrations (ragtime.jdbc/load-resources "migrations")})
-
-(defn migrate []
-  (ragtime.repl/migrate (load-config)))
-
-(defn rollback []
-  (ragtime.repl/rollback (load-config)))
-
-(defn query [x] (jdbc/query db x))
-(defn execute! [x] (jdbc/execute! db x))
 
 ;;
 ;; Honeysql extensions

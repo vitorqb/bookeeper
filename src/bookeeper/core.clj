@@ -33,33 +33,33 @@
 (def main-cmd-specs
   "An array of specifications for commands.
   Every item in the array must have:
-  :cmd-name -> the name of the command
-  :cmd-spec -> an array of arguments specs, as of cli-parser.
+  :name -> the name of the command
+  :args-specs -> an array of arguments specs, as of cli-parser.
   :handler  -> a handler (fn) to execute this command.
   :required-keys -> defines keys that must be parsed by the user."
 
-  [{:cmd-name      "add-book"
-    :cmd-spec      [["-t" "--title TITLE" "Title"]]
+  [{:name          "add-book"
+    :args-specs    [["-t" "--title TITLE" "Title"]]
     :handler       #'add-book-handler
     :required-keys [:title]}
 
-   {:cmd-name      "query-books"
-    :cmd-spec      []
+   {:name         "query-books"
+    :args-specs    []
     :handler       #'query-books-handler
     :required-keys []}
 
-   {:cmd-name      "time-spent"
-    :cmd-spec      [["-t" "--book-title BOOK_TITLE" "Book title"]]
+   {:name          "time-spent"
+    :args-specs    [["-t" "--book-title BOOK_TITLE" "Book title"]]
     :handler       #'time-spent-handler
     :required-keys [:book-title]}
 
-   {:cmd-name      "query-reading-sessions"
-    :cmd-spec      []
+   {:name          "query-reading-sessions"
+    :args-specs    []
     :handler       #'query-reading-sessions-handler
     :required-keys []}
 
-   {:cmd-name      "read-book"
-    :cmd-spec      [["-t" "--book-title BOOK_TITLE" "Book title"]
+   {:name          "read-book"
+    :args-specs    [["-t" "--book-title BOOK_TITLE" "Book title"]
                     ;; !!!! TODO -> Warn if date is wrong!
                     ["-d" "--date DATE" "Date"
                      :parse-fn str-to-date]
@@ -77,21 +77,19 @@
       ((get-handler cmd-name main-cmd-specs) cmd-opts))))
 
 ;;
-;; Cli parser helpers
+;; Handlers
 ;;
-;; !!!! TODO -> Allow handlers to return nil (everything went fine) or
-;; !!!!         {:ok? ... :exit-message ...}
 (defn get-handler
   "Given a collection of cmd-specs (like main-cmd-specs), returns the
   handler for a specific command with name `cmd-name`"
   [cmd-name cmd-specs]
-  (let [filtered (filter (fn [{nm :cmd-name}] (= cmd-name nm)) cmd-specs)]
-    (case (min (count filtered) 2)
-      0 (throw (RuntimeException. (format "Could not find handler for %s" cmd-name)))
-      2 (throw (RuntimeException. (format "Multiple handlers found for %s" cmd-name)))
-      1 (-> filtered first :handler))))
+  (letfn [(throw-err [msg] (throw (RuntimeException. (format msg cmd-name))))]
+    (let [filtered (filter (fn [{nm :name}] (= cmd-name nm)) cmd-specs)]
+      (case (min (count filtered) 2)
+        0 (throw-err "Could not find handler for %s")
+        2 (throw-err "Multiple handlers found for %s")
+        1 (-> filtered first :handler)))))
 
-;; !!!! TODO -> Generic query handler
 (defn query-books-handler [{}]
   (->> (query-all-books) (map book-to-repr) sort (run! doprint)))
 

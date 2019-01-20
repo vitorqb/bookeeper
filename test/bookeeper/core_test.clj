@@ -41,14 +41,14 @@
 
 (deftest test-get-handler
   (testing "Base"
-    (is (= (get-handler "cmd1" [{:cmd-name "cmd1" :handler :SENTINEL}])
+    (is (= (get-handler "cmd1" [{:name "cmd1" :handler :SENTINEL}])
            :SENTINEL)))
   (testing "Not found throws error"
     (is (thrown? RuntimeException (get-handler "cmd1" []))))
   (testing "Multiple throws error"
     (is (thrown? RuntimeException
-                 (get-handler "cmd2" [{:cmd-name "cmd2" :handler 1}
-                                      {:cmd-name "cmd2" :handler 2}])))))
+                 (get-handler "cmd2" [{:name "cmd2" :handler 1}
+                                      {:name "cmd2" :handler 2}])))))
 
 (deftest test-create-book-sql
   (testing "Base"

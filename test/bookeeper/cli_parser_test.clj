@@ -39,30 +39,30 @@
     (is (= {:ok false :exit-message "Missing options: a"}
            (parse-args ["cmd"]
                        []
-                       [{:cmd-name "cmd"
-                         :cmd-spec [["-a" "--arg1 ARG"]]
+                       [{:name "cmd"
+                         :args-specs [["-a" "--arg1 ARG"]]
                          :required-keys [:a]}]))))
 
   (testing "Unkown command"
-    (is (= {:ok false :exit-message (format-unknown-cmd "unkown")}
-           (parse-args ["unkown"] [] []))))
+    (is (= (parse-args ["unkown"] [] [])
+           {:ok false :exit-message (format-unknown-cmd "unkown")})))
 
   (testing "Positional args not supported"
     (is (= {:ok false :exit-message exit-message-positional-arguments-not-supported}
-           (parse-args ["cmd" "pos"] [] [{:cmd-name "cmd" :cmd-spec []}]))))
+           (parse-args ["cmd" "pos"] [] [{:name "cmd" :args-specs []}]))))
 
   (let [name "do-this"]
 
     (testing "Known command"
       (is (= {:cmd-name name :cmd-opts {} :global-opts {}}
-             (parse-args [name] [] [{:cmd-name name :cmd-spec []}]))))
+             (parse-args [name] [] [{:name name :args-specs []}]))))
 
     (testing "Known command with options"
       (is (= {:cmd-name name :cmd-opts {:opt1 "value1"} :global-opts {}}
              (parse-args [name "--opt1" "value1"]
                          []
-                         [{:cmd-name name :cmd-spec [[nil "--opt1 VALUE"]]}]))))
+                         [{:name name :args-specs [[nil "--opt1 VALUE"]]}]))))
 
     (testing "Known command invalid option"
       (is (= {:ok false :exit-message "Unknown option: \"-a\""}
-             (parse-args [name "-a"] [] [{:cmd-name name :cmd-spec []}]))))))
+             (parse-args [name "-a"] [] [{:name name :args-specs []}]))))))

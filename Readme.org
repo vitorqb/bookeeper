@@ -1,5 +1,54 @@
 * Bookeeper
 
+  A silly program I made to learn some clojure.
+  It is intended to keep track of your readings.
+
+** Example
+   First we need to prepare an sqlite3 database and apply the
+   migrations to it. This will work:
+
+#+BEGIN_EXAMPLE
+$ # Prepares a dir
+$ mkdir -p ~/.bookeeper/
+$ # Exports an env var telling which db should be used
+$ export BOOKEEPER_DB_FILE=~/.bookeper/db.sqlite3 
+$ # Runs the migrations
+$ lein migrate
+> Applying 001-books-table
+> Applying 002-reading-sessions-table
+#+END_EXAMPLE
+
+   We can now add our first book! =D
+
+#+BEGIN_EXAMPLE
+$ lein run add-book --title 'Clojure for the Brave and True'
+$ lein run query-books
+> [1] [Clojure for the Brave and True]
+#+END_EXAMPLE
+
+   Now let's add two reading sessions for it.
+   Note: duration is considered seconds.
+
+#+BEGIN_EXAMPLE
+$ lein run read-book -t 'Clojure for the Brave and True' -d 2019-01-20 --duration 600
+$ lein run query-reading-sessions
+> [2019-01-20] [Clojure for the Brave and True] [600]
+#+END_EXAMPLE
+
+   And we can add a second reading sessions and ask for the total
+   ammount of time we have spent with it.
+
+#+BEGIN_EXAMPLE
+$ lein run read-book -t 'Clojure for the Brave and True' -d 2019-01-20 --duration 1200
+$ lein run query-reading-sessions
+> [2019-01-20] [Clojure for the Brave and True] [1200]
+> [2019-01-20] [Clojure for the Brave and True] [600]
+$ lein run time-spent -t 'Clojure for the Brave and True'
+> 1800
+#+END_EXAMPLE
+
+   And that is it. I told it was silly.
+
 ** Development
 
 *** Starting a nrepl

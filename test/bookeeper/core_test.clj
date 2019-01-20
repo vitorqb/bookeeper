@@ -77,6 +77,36 @@
       (is (= (first @args) db))
       (is (= (second @args) ["SELECT * FROM books"])))))
 
+(deftest test-query-all-reading-sessions
+  (testing "Makes right query"
+    (let [query-call-arg (atom nil)]
+      (with-redefs [query-all-reading-sessions-sql (constantly :sentinel)
+                    query (fn [x]
+                            (reset! query-call-arg x)
+                            [{:date "2018-12-12"}])]
+        (query-all-reading-sessions)
+        (is (= @query-call-arg :sentinel)))))
+  (testing "Parses date correctly"
+    (with-redefs [query (constantly [{:date "1972-12-12"}])]
+      (is (= (query-all-reading-sessions)
+             [{:date (java-time/local-date 1972 12 12)}]))))
+  (testing "Bring entire books if [:books] parsed."
+    (with-redefs [query (constantly [{:book_id 1
+                                      :book_title "Title"
+                                      :date "1991-01-01"}])]
+      (is (= [{:date (java-time/local-date 1991 1 1) :book {:id 1 :title "Title"}}]
+             (query-all-reading-sessions [:book]))))))
+
+(deftest test-query-all-reading-sessions-sql
+  (testing "Query without :book"
+    (is (= (query-all-reading-sessions-sql)
+           [(str "SELECT reading_sessions.id AS id, date, duration, book_id FROM"
+                 " reading_sessions")])))
+  (testing "With :book"
+    (is (= (query-all-reading-sessions-sql [:book])
+           [(str "SELECT reading_sessions.id AS id, date, duration, book_id,"
+                 " books.title AS book_title FROM reading_sessions"
+                 " INNER JOIN books ON books.id = book_id")]))))
 
 (deftest test-delete-book-sql
   (testing "Base"
@@ -130,7 +160,12 @@
     (is (= "[1993-11-23] [2] [444]"
            (reading-session-to-repr {:date (java-time/local-date 1993 11 23)
                                      :book_id 2
-                                     :duration 444})))))
+                                     :duration 444}))))
+  (testing "When book parsed"
+    (is (= "[2017-01-02] [My Book] [120]"
+           (reading-session-to-repr {:date (java-time/local-date 2017 1 2)
+                                     :book {:title "My Book"}
+                                     :duration 120})))))
 
 (deftest test-functional-time-spent
   (testing "Calls time-spent-handler"

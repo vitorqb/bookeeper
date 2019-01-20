@@ -26,7 +26,6 @@
    :subprotocol "sqlite"
    :subname     (getenv-or-error "BOOKEEPER_DB_FILE")})
 
-
 ;;
 ;; Main
 ;; 
@@ -94,7 +93,7 @@
   (->> (query-all-books) (map book-to-repr) sort (run! doprint)))
 
 (defn query-reading-sessions-handler [{}]
-  (->> (query-all-reading-sessions)
+  (->> (query-all-reading-sessions [:book])
        (map reading-session-to-repr)
        sort
        (run! doprint)))
@@ -149,18 +148,38 @@
 
 ;; !!!! TODO -> generic-query-all?
 (def query-all-books-sql #(-> {:select :* :from :books} sql/build sql/format))
-
 (def query-all-books #(-> (query-all-books-sql) query))
 
-(def query-all-reading-sessions-sql
-  #(-> {:select :* :from :reading-sessions} sql/build sql/format))
+(defn query-all-reading-sessions-sql
+  "Prepares a query for reading-sessions.
+  If bring-related contains :book, join information for the book as
+  book_id and book_title."
+  ([] (query-all-reading-sessions-sql []))
+  ([bring-related]
+   (let [bring-books-p (some #{:book} bring-related)
+         select-fields (cond-> [[:reading-sessions.id :id] :date :duration :book_id]
+                         bring-books-p (concat [[:books.title :book_title]]))]
+     (-> {:select select-fields :from :reading-sessions}
+         (cond-> bring-books-p (sqlhelpers/join :books [:= :books.id :book_id]))
+         sql/build
+         sql/format))))
 
-;; !!!! TODO -> Transform date into java-time
-(defn query-all-reading-sessions []
-  (letfn [(str-to-date [x] (java-time/local-date "yyyy-MM-dd" x))]
-    (->> (query-all-reading-sessions-sql)
+(defn query-all-reading-sessions
+  "Queries the db for all reading-sessions
+  being-related defines which related info should be added to the result,
+  currently either [] or [:books].
+  If [] then returns {... :book_id ...}
+  If [:books] then returns {... :book: {:id ... :title ...}}"
+  ([] (query-all-reading-sessions []))
+  ([bring-related]
+   (let [bring-books-p (some #{:book} bring-related)
+         move-books #(-> %
+                         (move-in [:book_id] [:book :id])
+                         (move-in [:book_title] [:book :title]))]
+     (-> (query-all-reading-sessions-sql bring-related)
          query
-         (map #(update % :date str-to-date)))))
+         (->> (map #(update % :date str-to-date)))
+         (cond->> bring-books-p (map move-books))))))
 
 (defn create-reading-session-sql
   [{:keys [date duration book]}]
@@ -174,14 +193,13 @@
   [{id :id title :title}]
   (format "[%s] %s" id title))
 
-;; !!!! TODO -> Print book title
 (defn reading-session-to-repr
-  [{:keys [date book_id duration]}]
-  (format "[%s] [%s] [%s]"
-          ;; !!!! -> standard format date function
-          (date-to-str date)
-          book_id
-          duration))
+  "Prints a reading-session.
+  If the entire book is parsed, print the book title.
+  If only the id is parsed, prints the id only"
+  [{:keys [date book book_id duration]}]
+  (let [book-title (and book (:title book))]
+    (format "[%s] [%s] [%s]" (date-to-str date) (or book-title book_id) duration)))
 
 (defn get-time-spent-query
   "Returns a query withthe time spent for a book"

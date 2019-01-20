@@ -6,6 +6,7 @@
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.clojure/java.jdbc "0.7.8"]
                  [org.clojure/tools.cli "0.4.1"]
+                 [org.clojure/core.incubator "0.1.4"]
                  [org.xerial/sqlite-jdbc "3.23.1"]
                  [ragtime "0.7.2"]
                  [honeysql "0.9.4"]

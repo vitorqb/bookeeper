@@ -1,5 +1,6 @@
 (ns bookeeper.helpers
-  (:require [java-time]))
+  (:require [java-time]
+            [clojure.core.incubator :refer [dissoc-in]]))
 
 ;;
 ;; System Helpers
@@ -42,3 +43,13 @@
   "Converts a string in default-date-format to a date"
   [x]
   (java-time/local-date default-date-format x))
+
+;;
+;; Other
+;;
+(defn move-in
+  "Moves a path in a map to another path"
+  [m old new]
+  (as-> m it
+    (assoc-in it new (get-in it old))
+    (dissoc-in it old)))

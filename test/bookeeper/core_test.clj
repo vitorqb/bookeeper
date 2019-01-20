@@ -153,7 +153,7 @@
 (deftest test-book-to-repr
   (testing "Base"
     (is (= (book-to-repr {:id 12 :title "A book title"})
-           "[12] A book title"))))
+           "[12] [A book title]"))))
 
 (deftest test-reading-session-to-repr
   (testing "Base"

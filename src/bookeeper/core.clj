@@ -102,13 +102,13 @@
   (create-book {:title title}))
 
 (defn time-spent-handler [{book-title :book-title}]
-  (->> book-title
-       (assoc {} :title)
-       query-book
-       get-time-spent
-       ((fn [x] (or x 0)))
-       str
-       doprint))
+  (-> book-title
+      (->> (assoc {} :title))
+      query-book
+      get-time-spent
+      (or 0)
+      str
+      doprint))
 
 (defn read-book-handler [{:keys [book-title date duration]}]
   (->> book-title
@@ -130,11 +130,12 @@
 
 (defn query-book-sql
   [{id :id title :title}]
-  (cond-> {:select :* :from :books}
-    id    (sqlhelpers/where [:= :id id])
-    title (sqlhelpers/where [:= :title title])
-    true  sql/build
-    true  sql/format))
+  (-> {:select :* :from :books}
+      (cond-> 
+          id    (sqlhelpers/where [:= :id id])
+          title (sqlhelpers/where [:= :title title]))
+      sql/build
+      sql/format))
 
 (def query-book #(-> % query-book-sql query first))
 
@@ -156,11 +157,12 @@
   book_id and book_title."
   ([] (query-all-reading-sessions-sql []))
   ([bring-related]
-   (let [bring-books-p (some #{:book} bring-related)
-         select-fields (cond-> [[:reading-sessions.id :id] :date :duration :book_id]
-                         bring-books-p (concat [[:books.title :book_title]]))]
-     (-> {:select select-fields :from :reading-sessions}
-         (cond-> bring-books-p (sqlhelpers/join :books [:= :books.id :book_id]))
+   (let [bring-books-p (some #{:book} bring-related)]
+     (-> {:from :reading-sessions
+          :select [[:reading-sessions.id :id] :date :duration :book_id]}
+         (cond-> bring-books-p
+           (-> (update :select #(concat % [[:books.title :book-title]]))
+               (sqlhelpers/join :books [:= :books.id :book_id])))
          sql/build
          sql/format))))
 
@@ -191,7 +193,7 @@
 
 (defn book-to-repr
   [{id :id title :title}]
-  (format "[%s] %s" id title))
+  (format "[%s] [%s]" id title))
 
 (defn reading-session-to-repr
   "Prints a reading-session.
@@ -214,11 +216,11 @@
   "Returns the time spent reading a book."
   [book]
   (-> book
-      (get-time-spent-query)
-      (query)
-      (first)
-      (:sum_duration)
-      ((fn [x] (or x 0)))))
+      get-time-spent-query
+      query
+      first
+      :sum_duration
+      (or 0)))
 
 ;; 
 ;; db-related stuff

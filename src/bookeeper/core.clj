@@ -28,7 +28,8 @@
 
 ;;
 ;; Main
-;; 
+;;
+;; !!!! TODO -> Add --help
 (def main-cmd-specs
   "An array of specifications for commands.
   Every item in the array must have:

@@ -107,7 +107,7 @@
 
 (defn time-spent-handler [{book-title :book-title}]
   (-> book-title
-      (->> (assoc {} :title))
+      (->> (hash-map :title))
       query-book
       get-time-spent
       (or 0)
@@ -182,14 +182,13 @@
   If [:books] then returns {... :book: {:id ... :title ...}}"
   ([] (query-all-reading-sessions []))
   ([bring-related]
-   (let [bring-books-p (some #{:book} bring-related)
-         move-books #(-> %
-                         (move-in [:book_id] [:book :id])
-                         (move-in [:book_title] [:book :title]))]
+   (let [bring-books-p (some #{:book} bring-related)]
      (-> (query-all-reading-sessions-sql bring-related)
          query
          (->> (map #(update % :date str-to-date)))
-         (cond->> bring-books-p (map move-books))))))
+         (cond-> bring-books-p
+           (->> (map #(move-in % [:book_id] [:book :id]))
+                (map #(move-in % [:book_title] [:book :title]))))))))
 
 (defn create-reading-session-sql
   [{:keys [date duration book]}]

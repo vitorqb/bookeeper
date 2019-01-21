@@ -1,6 +1,7 @@
 (ns bookeeper.helpers
   (:require [java-time]
-            [clojure.core.incubator :refer [dissoc-in]]))
+            [clojure.core.incubator :refer [dissoc-in]]
+            [clojure.string :as str]))
 
 ;;
 ;; System Helpers
@@ -25,7 +26,6 @@
   "Print the error message and exists with code"
   (doprint (format "ERROR: %s" msg))
   (System/exit code))
-
 
 ;;
 ;; Date Helpers
@@ -53,3 +53,13 @@
   (as-> m it
     (assoc-in it new (get-in it old))
     (dissoc-in it old)))
+
+(defn keyword-replace
+  "Replaces a keyword"
+  [k match replacement]
+  (-> k name (str/replace match replacement) keyword))
+
+(defn replace-underscore-in-keys
+  "Replaces all _ in keys of a map to -"
+  [m]
+  (into {} (map (fn [[k v]] [(keyword-replace k #"_" "-") v]) m)))

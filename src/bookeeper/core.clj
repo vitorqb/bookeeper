@@ -29,7 +29,8 @@
   :required-keys -> defines keys that must be parsed by the user."
 
   [{:name          "add-book"
-    :args-specs    [["-t" "--title TITLE" "Title"]]
+    :args-specs    [["-t" "--title TITLE" "Title"]
+                    ["-p" "--page-count PAGE_COUNT" "Page count"]]
     :handler       #'add-book-handler
     :required-keys [:title]}
 
@@ -102,8 +103,7 @@
        sort
        (run! doprint)))
 
-(defn add-book-handler [{title :title}]
-  (create-book {:title title}))
+(def add-book-handler #(create-book %))
 
 (defn time-spent-handler [{book-title :book-title}]
   (-> book-title
@@ -125,8 +125,11 @@
 ;; Bussiness Logic
 ;;
 (defn create-book-sql
-  [{title :title}]
+  [{title :title page-count :page-count}]
+  (assert title "Title should never be null")
   (-> {:insert-into :books :values [{:title title}]}
+      (cond-> page-count
+        (assoc-in [:values 0 :page-count] page-count))
       sql/build
       sql/format))
 
@@ -157,7 +160,11 @@
 
 ;; !!!! TODO -> generic-query-all?
 (def query-all-books-sql #(-> {:select :* :from :books} sql/build sql/format))
-(def query-all-books #(-> (query-all-books-sql) query))
+(defn query-all-books
+  []
+  (-> (query-all-books-sql)
+      (query)
+      (#(map replace-underscore-in-keys %))))
 
 (defn query-all-reading-sessions-sql
   "Prepares a query for reading-sessions.
@@ -198,10 +205,14 @@
 
 (def create-reading-session #(-> % create-reading-session-sql execute!))
 
+;; !!!! TODO -> Returns as clojure map
 (defn book-to-repr
-  [{id :id title :title}]
-  (format "[%s] [%s]" id title))
+  [{:keys [id title page-count]}]
+  (->> [id title page-count]
+       (map #(or % ""))
+       (apply format "[%s] [%s] [%s]")))
 
+;; !!!! TODO -> Returns as clojure map
 (defn reading-session-to-repr
   "Prints a reading-session.
   If the entire book is parsed, print the book title.

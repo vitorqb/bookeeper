@@ -10,7 +10,7 @@
            (catch clojure.lang.ExceptionInfo e
              (let [data (ex-data e)]
                (is (= (:capture-for-user data) true))
-               (is (= (:user-err-msg :sentinel))))))))
+               (is (= (:user-err-msg data) :sentinel)))))))
   (testing "Returning 1"
     (with-redefs [query (constantly [:sentinel-value])]
       (is (= (query-returning-one "" "") :sentinel-value)))))

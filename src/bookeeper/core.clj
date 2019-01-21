@@ -55,7 +55,8 @@
                     ["-d" "--date DATE" "Date"
                      :parse-fn str-to-date]
                     ["-u" "--duration DURATION" "Duration"
-                     :parse-fn #(Integer/parseInt %)]]
+                     :parse-fn #(Integer/parseInt %)]
+                    ["-p" "--page-count PAGE_COUNT" "Page count"]]
     :handler       #'read-book-handler
     :required-keys [:book-title :date :duration]}])
 
@@ -114,11 +115,11 @@
       str
       doprint))
 
-(defn read-book-handler [{:keys [book-title date duration]}]
+(defn read-book-handler [{:keys [book-title date duration page-count]}]
   (->> book-title
        (assoc {} :title)
        query-book
-       (assoc {:date date :duration duration} :book)
+       (assoc {:date date :duration duration :page-count page-count} :book)
        create-reading-session))
 
 ;;
@@ -174,7 +175,8 @@
   ([bring-related]
    (let [bring-books-p (some #{:book} bring-related)]
      (-> {:from :reading-sessions
-          :select [[:reading-sessions.id :id] :date :duration :book_id]}
+          :select [[:reading-sessions.id :id] :date :duration :book_id
+                   [:reading-sessions.page_count :page_count]]}
          (cond-> bring-books-p
            (-> (update :select #(concat % [[:books.title :book-title]]))
                (sqlhelpers/join :books [:= :books.id :book_id])))
@@ -195,12 +197,15 @@
          (->> (map #(update % :date str-to-date)))
          (cond-> bring-books-p
            (->> (map #(move-in % [:book_id] [:book :id]))
-                (map #(move-in % [:book_title] [:book :title]))))))))
+                (map #(move-in % [:book_title] [:book :title]))))
+         (#(map replace-underscore-in-keys %))))))
 
 (defn create-reading-session-sql
-  [{:keys [date duration book]}]
+  [{:keys [date duration book page-count]}]
   (-> {:insert-into :reading-sessions
        :values [{:date date :duration duration :book-id (:id book)}]}
+      (cond-> page-count
+        (assoc-in [:values 0 :page-count] page-count))
       sql/format))
 
 (def create-reading-session #(-> % create-reading-session-sql execute!))
@@ -217,9 +222,13 @@
   "Prints a reading-session.
   If the entire book is parsed, print the book title.
   If only the id is parsed, prints the id only"
-  [{:keys [date book book_id duration]}]
+  [{:keys [date book book_id duration page-count]}]
   (let [book-title (and book (:title book))]
-    (format "[%s] [%s] [%s]" (date-to-str date) (or book-title book_id) duration)))
+    (format "[%s] [%s] [%s] [%s]"
+            (date-to-str date)
+            (or book-title book_id)
+            duration
+            (or page-count ""))))
 
 (defn get-time-spent-query
   "Returns a query withthe time spent for a book"

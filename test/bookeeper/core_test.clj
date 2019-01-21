@@ -121,14 +121,16 @@
 
   (testing "Query without :book"
     (is (= (query-all-reading-sessions-sql)
-           [(str "SELECT reading_sessions.id AS id, date, duration, book_id FROM"
-                 " reading_sessions")])))
+           [(str "SELECT reading_sessions.id AS id, date, duration, book_id,"
+                 " reading_sessions.page_count AS page_count"
+                 " FROM reading_sessions")])))
 
   (testing "With :book"
-    (is (= (query-all-reading-sessions-sql [:book])
-           [(str "SELECT reading_sessions.id AS id, date, duration, book_id,"
+    (is (= [(str "SELECT reading_sessions.id AS id, date, duration, book_id,"
+                 " reading_sessions.page_count AS page_count,"
                  " books.title AS book_title FROM reading_sessions"
-                 " INNER JOIN books ON books.id = book_id")]))))
+                 " INNER JOIN books ON books.id = book_id")]
+           (query-all-reading-sessions-sql [:book])))))
 
 (deftest test-delete-book-sql
   (testing "Base"
@@ -168,12 +170,19 @@
 
 (deftest test-create-reading-session
 
-  (testing "create-reading-session-sql"
+  (testing "create-reading-session-sql no pages"
     (is (= [(str "INSERT INTO reading_sessions (date, duration, book_id) VALUES (?, ?, ?)")
             "2018-02-02" 250 1]
            (create-reading-session-sql {:date (java-time/local-date 2018 2 2)
                                         :duration 250
-                                        :book {:id 1}})))))
+                                        :book {:id 1}}))))
+  (testing "create-reading-sessions-sql with pages"
+    (is (= [(str "INSERT INTO reading_sessions (date, duration, book_id, page_count)"
+                 " VALUES (?, ?, ?, ?)") "2019-01-01" 222 13 40]
+           (create-reading-session-sql {:date (java-time/local-date 2019 1 1)
+                                        :duration 222
+                                        :book {:id 13}
+                                        :page-count 40})))))
 
 (deftest test-book-to-repr
 
@@ -187,14 +196,21 @@
 
 (deftest test-reading-session-to-repr
 
-  (testing "Base"
-    (is (= "[1993-11-23] [2] [444]"
+  (testing "Base without page_count"
+    (is (= "[1993-11-23] [2] [444] []"
            (reading-session-to-repr {:date (java-time/local-date 1993 11 23)
                                      :book_id 2
                                      :duration 444}))))
 
+  (testing "Base with page_count"
+    (is (= "[1998-02-03] [4] [11] [2]"
+           (reading-session-to-repr {:date (java-time/local-date 1998 2 3)
+                                     :book_id 4
+                                     :duration 11
+                                     :page-count 2}))))
+
   (testing "When book parsed"
-    (is (= "[2017-01-02] [My Book] [120]"
+    (is (= "[2017-01-02] [My Book] [120] []"
            (reading-session-to-repr {:date (java-time/local-date 2017 1 2)
                                      :book {:title "My Book"}
                                      :duration 120})))))
@@ -207,7 +223,7 @@
           (throw (ex-info "" {:capture-for-user true :user-err-msg "Some error"})))
         (is (not (nil? @called-args)))
         (is (= 1 (first @called-args)))
-        (is (= "ERROR: Some error") (second @called-args))))
+        (is (= "Some error" (second @called-args)))))
   (testing "Actually throws if no :capture-for-user"
     (is (thrown? clojure.lang.ExceptionInfo
                  (with-capturing-user-exceptions (constantly nil)
@@ -308,3 +324,21 @@
         (let [read-output (extract-doprint-from (-main "time-spent" "--book-title" title))]
           (is (= (-> read-output first Integer/parseInt)
                  (reduce + durations))))))))
+
+(deftest test-functional-reading-sessions
+  (testing "Adding a new reading sessions"
+    (clear-books-and-reading-sessions)
+    (with-redefs [exit (fn [& args]
+                         (throw (Exception. (format "Exitted during test! args: %s"
+                                                    (str args)))))]
+      (-main "add-book" "--title" "A")
+      (-main "read-book"
+             "--book-title" "A"
+             "--date" "2018-01-01"
+             "--duration" "120"
+             "--page-count" "20"))
+    (with-redefs [exit #(doprint %2)]
+      (let [printted (extract-doprint-from (-main "query-reading-sessions"))]
+        (is (= (count printted) 1))
+        ;; Ends with [20], number of page-count
+        (is (str/ends-with? (first printted) "[20]"))))))

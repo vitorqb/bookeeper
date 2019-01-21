@@ -31,7 +31,8 @@
 
 ;;
 ;; Tests
-;; 
+;;
+;; !!!! TODO -> move to helpers test
 (deftest test-getenv-or-error
   (testing "Returns when getenv returns"
     (with-redefs [getenv (constantly "hola")]
@@ -40,6 +41,7 @@
     (with-redefs [getenv (constantly nil)]
       (is (thrown? RuntimeException (getenv-or-error "a"))))))
 
+;; !!!! TODO -> move to helpers test
 (deftest test-get-handler
   (testing "Base"
     (is (= (get-handler "cmd1" [{:name "cmd1" :handler :SENTINEL}])
@@ -52,13 +54,27 @@
                                       {:name "cmd2" :handler 2}])))))
 
 (deftest test-create-book-sql
-  (testing "Base"
-    (is (= (create-book-sql {:title "Book One"})
-           ["INSERT INTO books (title) VALUES (?)" "Book One"]))))
+  (letfn [(gen-expected-query [cols]
+            (let [cols-str (str/join ", " cols)
+                  params-str (-> cols count (repeat "?") (->> (str/join ", ")))]
+              (str "INSERT INTO books (" cols-str ") VALUES (" params-str ")")))]
+    (testing "Without page count"
+      (is (= (create-book-sql {:title "Book One"})
+             [(gen-expected-query ["title"]) "Book One"])))
+    (testing "With page count"
+      (is (= [(gen-expected-query ["title" "page_count"]) "Book Two" 12]
+             (create-book-sql {:title "Book Two" :page-count 12}))))))
 
 (deftest test-create-book
-  (testing "Makes correct query"
-    ;; !!!! TODO -> Abstract query-arg
+
+  (testing "Calls create-book-sql with correct params"
+    (let [arg (atom nil)]
+      (with-redefs [create-book-sql (fn [& xs] (reset! arg xs))
+                    execute! (constantly nil)]
+        (create-book {:title :a :page-count :b}))
+      (is (= @arg [{:title :a :page-count :b}]))))
+
+  (testing "Parses the result of create-book-sql to execute!"
     (let [query-arg (atom {})]
       (with-redefs [clojure.java.jdbc/execute! (fn [_ x] (reset! query-arg x))]
         (create-book {:title "Hola"}))
@@ -79,6 +95,7 @@
       (is (= (second @args) ["SELECT * FROM books"])))))
 
 (deftest test-query-all-reading-sessions
+
   (testing "Makes right query"
     (let [query-call-arg (atom nil)]
       (with-redefs [query-all-reading-sessions-sql (constantly :sentinel)
@@ -87,10 +104,12 @@
                             [{:date "2018-12-12"}])]
         (query-all-reading-sessions)
         (is (= @query-call-arg :sentinel)))))
+
   (testing "Parses date correctly"
     (with-redefs [query (constantly [{:date "1972-12-12"}])]
       (is (= (query-all-reading-sessions)
              [{:date (java-time/local-date 1972 12 12)}]))))
+
   (testing "Bring entire books if [:books] parsed."
     (with-redefs [query (constantly [{:book_id 1
                                       :book_title "Title"
@@ -99,10 +118,12 @@
              (query-all-reading-sessions [:book]))))))
 
 (deftest test-query-all-reading-sessions-sql
+
   (testing "Query without :book"
     (is (= (query-all-reading-sessions-sql)
            [(str "SELECT reading_sessions.id AS id, date, duration, book_id FROM"
                  " reading_sessions")])))
+
   (testing "With :book"
     (is (= (query-all-reading-sessions-sql [:book])
            [(str "SELECT reading_sessions.id AS id, date, duration, book_id,"
@@ -131,12 +152,14 @@
            (query-book-sql {:title "mytitle"})))))
 
 (deftest test-get-time-spent
+
   (testing "Makes correct query"
     (let [query-calls (atom ())]
       (with-redefs [query (fn [& args] (swap! query-calls conj args))]
         (get-time-spent {:id 1}))
       (is (= 1 (count @query-calls)))
       (is (= (list (get-time-spent-query {:id 1})) (first @query-calls)))))
+
   (testing "The query"
     (is (= [(str "SELECT sum(duration) AS sum_duration"
                  " FROM reading_sessions"
@@ -144,6 +167,7 @@
            (get-time-spent-query {:id 15})))))
 
 (deftest test-create-reading-session
+
   (testing "create-reading-session-sql"
     (is (= [(str "INSERT INTO reading_sessions (date, duration, book_id) VALUES (?, ?, ?)")
             "2018-02-02" 250 1]
@@ -152,16 +176,23 @@
                                         :book {:id 1}})))))
 
 (deftest test-book-to-repr
-  (testing "Base"
+
+  (testing "Base (no page-count)"
     (is (= (book-to-repr {:id 12 :title "A book title"})
-           "[12] [A book title]"))))
+           "[12] [A book title] []")))
+
+  (testing "Base (w/ page-count"
+    (is (= (book-to-repr {:id 12 :title "A" :page-count 23})
+           "[12] [A] [23]"))))
 
 (deftest test-reading-session-to-repr
+
   (testing "Base"
     (is (= "[1993-11-23] [2] [444]"
            (reading-session-to-repr {:date (java-time/local-date 1993 11 23)
                                      :book_id 2
                                      :duration 444}))))
+
   (testing "When book parsed"
     (is (= "[2017-01-02] [My Book] [120]"
            (reading-session-to-repr {:date (java-time/local-date 2017 1 2)
@@ -239,34 +270,41 @@
           (is (str/starts-with? (first resp) (str "[" (date-to-str date) "]"))))))))
 
 (deftest test-functional-add-and-read-book
-  (testing "Adds a new book"
-    ;; Clears books from db
-    (->> (query-all-books) (run! delete-book))
-    ;; Adds a new book
-    (let [title "How To Solve It"
-          contains-title? #(.contains % title)]
-      (-main "add-book" "--title" title)
-      ;; And sees it in the output when querying for books
-      (let [query-books-prints (extract-doprint-from (-main "query-books"))]
-        (is (some contains-title? query-books-prints)))))
-
-  (testing "Adds a new book")
-  ;; Clear books from db
-  (clear-books-and-reading-sessions)
-  (with-redefs [exit (fn [_ msg] (doprint msg))]
-    (let [title     "My Book"
-          date      (java-time/local-date 2018 11 23)
-          durations [(* 30 60) (* 30 30)]]
-      (with-ignore-doprint
-        ;; Adds a new book!
+  (testing "Adds two new books"
+    ;; Avoid exit on failure
+    (with-redefs [exit #(doprint %2)]
+      ;; Clears books from db
+      (->> (query-all-books) (run! delete-book))
+      ;; Adds a new book
+      (let [title "How To Solve It"]
         (-main "add-book" "--title" title)
-        ;; Then add two readings
-        (run!
-         #(-main "read-book" "--book-title" title
-                 "--date" (date-to-str date)
-                 "--duration" (str %))
-         durations))
-      ;; Check it was read
-      (let [read-output (extract-doprint-from (-main "time-spent" "--book-title" title))]
-        (is (= (-> read-output first Integer/parseInt)
-               (reduce + durations)))))))
+        ;; And sees it in the output when querying for books
+        (let [query-books-prints (extract-doprint-from (-main "query-books"))]
+          (is (some #(.contains % title) query-books-prints))))
+      ;; Adds a second book with page count
+      (let [title "Clojure for the brave and true" page-count "630"]
+        (-main "add-book" "--title" title "--page-count" page-count)
+        (let [query-books-print (extract-doprint-from (-main "query-books"))]
+          (is (some #(.contains % title) query-books-print))
+          (is (some #(.contains % page-count) query-books-print))))))
+
+  (testing "Adds and reads a new book"
+    ;; Clear books from db
+    (clear-books-and-reading-sessions)
+    (with-redefs [exit (fn [_ msg] (doprint msg))]
+      (let [title     "My Book"
+            date      (java-time/local-date 2018 11 23)
+            durations [(* 30 60) (* 30 30)]]
+        (with-ignore-doprint
+          ;; Adds a new book!
+          (-main "add-book" "--title" title)
+          ;; Then add two readings
+          (run!
+           #(-main "read-book" "--book-title" title
+                   "--date" (date-to-str date)
+                   "--duration" (str %))
+           durations))
+        ;; Check it was read
+        (let [read-output (extract-doprint-from (-main "time-spent" "--book-title" title))]
+          (is (= (-> read-output first Integer/parseInt)
+                 (reduce + durations))))))))

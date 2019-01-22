@@ -1,6 +1,7 @@
 (ns bookeeper.core
   (:gen-class)
-  (:require [bookeeper.cli-parser :refer [parse-args]]
+  (:require [clojure.string :as str]
+            [bookeeper.cli-parser :refer [parse-args]]
             [bookeeper.helpers :refer :all]
             [bookeeper.db :refer :all]
             [honeysql.core :as sql]
@@ -60,6 +61,37 @@
     :handler       #'read-book-handler
     :required-keys [:book-title :date :duration]}])
 
+(defn make-cmd-help-msg
+  "Returns the help message for a single command.
+  cmd-spec is assumed to have :name and :args-specs."
+  [{:keys [name args-specs]}]
+  (-> name
+      (->> (format "Help for command '%s'"))
+      (cons nil)
+      (cond-> (= (count args-specs) 0)
+        (->> (cons "Arguments: none")))
+      (cond-> (> (count args-specs) 0)
+        (->> (cons "Arguments:")
+             (cons (->> args-specs (cli/parse-opts "") :summary))))
+      (reverse)
+      (->> (str/join "\n"))))
+  
+
+(defn make-help-msg
+  "Returns a string that is a help message for the user.
+  cmd-specs -> An array of command specs (like main-cmd-specs)"
+  [cmd-specs]
+  (->> cmd-specs
+       (map :name)
+       (map #(str "  - " %))
+       (sort)
+       (cons "Available commands:")
+       (cons "Usage: bookeeper <command> [args]")
+       (str/join "\n")))
+
+(def main-global-opts
+  [["-h" "--help"]])
+
 (defmacro with-capturing-user-exceptions
   "Tries to execute body. If captures an ExceptionInfo that contains
   {... :capture-for-user true} in its data, exits with exit-fn parsing
@@ -72,14 +104,25 @@
               (throw e#))
             (~exit-fn 1 (:user-err-msg (ex-data e#)))))))
 
+(def exit-message-no-command "No command provided.")
 (defn -main
   [& args]
-  (let [{:keys [exit-message ok? cmd-name cmd-opts handler]}
-        (parse-args args [] main-cmd-specs)]
-    (if exit-message
-      (exit (if ok? 0 1) exit-message)
-      (with-capturing-user-exceptions exit
-        ((get-handler cmd-name main-cmd-specs) cmd-opts)))))
+  (let [{:keys [exit-message ok? cmd-name cmd-opts global-opts]}
+        (parse-args args main-global-opts main-cmd-specs)]
+
+    (cond
+      (some #{[:help true]} global-opts) (doprint (make-help-msg main-cmd-specs))
+
+      exit-message (exit (if ok? 0 1) exit-message)
+
+      (= cmd-name nil) (exit 1 exit-message-no-command)
+
+      (some #{[:help true]} cmd-opts)
+      (let [cmd-spec (some #(-> % :name (= cmd-name) (and %)) main-cmd-specs)]
+        (doprint (make-cmd-help-msg cmd-spec)))
+
+      :else (with-capturing-user-exceptions exit
+              ((get-handler cmd-name main-cmd-specs) cmd-opts)))))
 
 ;;
 ;; Handlers

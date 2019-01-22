@@ -4,6 +4,7 @@
             [bookeeper.helpers :refer :all]
             [bookeeper.db :refer :all]
             [clojure.string :as str]
+            [clojure.tools.cli :as cli]
             [java-time]
             [honeysql.core :as sql]))
 
@@ -229,6 +230,38 @@
                  (with-capturing-user-exceptions (constantly nil)
                    (throw (ex-info "" {})))))))
 
+(deftest test-make-help-msg
+  (testing "Empty"
+    (is (= (str/join "\n" ["Usage: bookeeper <command> [args]"
+                           "Available commands:"])
+           (make-help-msg []))))
+  (testing "Two commands"
+    (let [names ["ab" "cde"]
+          specs (map #(hash-map :name %) names)]
+      (is (= (str/join "\n" ["Usage: bookeeper <command> [args]"
+                             "Available commands:"
+                             "  - ab"
+                             "  - cde"])
+             (make-help-msg specs))))))
+
+(deftest test-make-cmd-help-msg
+  (let [cmd-name "cmd1"]
+
+    (testing "Empty"
+      (let [cmd-spec {:name cmd-name :args-specs []}]
+        (is (= (str/join "\n" [(str "Help for command '" cmd-name "'")
+                               "Arguments: none"])
+               (make-cmd-help-msg cmd-spec)))))
+
+    (testing "Two long"
+      (let [args-specs [["t" "--title TITLE" "title"]]
+            cmd-spec {:name cmd-name :args-specs args-specs}]
+        (is (= (str/join "\n" [(str "Help for command '" cmd-name "'")
+                               "Arguments:"
+                               (-> (cli/parse-opts "" args-specs) :summary)])
+               (make-cmd-help-msg cmd-spec)))))))
+
+
 (deftest test-functional-tests-unkown-book
   (testing "Unkown book on read-book"
     (let [printted (extract-doprint-from
@@ -342,3 +375,16 @@
         (is (= (count printted) 1))
         ;; Ends with [20], number of page-count
         (is (str/ends-with? (first printted) "[20]"))))))
+
+(deftest test-functional-help
+  (testing "User calls --help to see the available commands"
+    (with-redefs [exit #(doprint %2)]
+      (let [resp (extract-doprint-from (-main "--help"))]
+        (is (= 1 (count resp)))
+        (is (= (make-help-msg main-cmd-specs) (first resp))))))
+  (testing "User calls --help in subcommand to see available arguments"
+    (with-redefs [exit #(doprint %2)]
+      (let [resp (extract-doprint-from (-main "add-book" "--help"))]
+        (is (= 1 (count resp)))
+        (let [add-book-spec (some #(-> % :name (= "add-book") (and %)) main-cmd-specs)]
+          (is (= (make-cmd-help-msg add-book-spec) (first resp))))))))

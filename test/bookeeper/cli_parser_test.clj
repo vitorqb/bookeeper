@@ -31,9 +31,13 @@
     (is (= {:ok false :exit-message "Unknown option: \"--opt\""}
            (parse-args ["--opt"] [] []))))
 
-  (testing "No args"
-    (is (= {:ok false :exit-message exit-message-no-command}
+  (testing "No command given"
+    (is (= {:cmd-name nil :cmd-opts nil :global-opts {}}
            (parse-args [] [] []))))
+
+  (testing "no command given, known global flag"
+    (is (= {:cmd-name nil :cmd-opts nil :global-opts {:help true}}
+           (parse-args ["-h"] [["-h" "--help"]] []))))
 
   (testing "Missing arg"
     (is (= {:ok false :exit-message "Missing options: a"}

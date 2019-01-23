@@ -8,7 +8,6 @@
 ;; Error messages
 (defn format-unknown-cmd [name] (format "Unkown command '%s'" name))
 (def exit-message-multiple-commands "Multiple commands provided.")
-(def exit-message-no-command "No command provided.")
 (def exit-message-positional-arguments-not-supported
   "Positional arguments for commands are not (yet) supported.")
 
@@ -25,8 +24,14 @@
   [args global-args-spec commands-specs]
   (let [{:keys [err-msg cmd-name global-opts cmd-args]}
         (parse-args-global args global-args-spec)]
-    (if err-msg
+    (cond
+      err-msg
       {:ok false :exit-message err-msg}
+
+      (= cmd-name nil)
+      {:cmd-name nil :cmd-opts nil :global-opts global-opts}
+
+      :else
       (let [args-specs (first (filter #(= (:name %) cmd-name) commands-specs))]
         (if (nil? args-specs)
           {:ok false :exit-message (format-unknown-cmd cmd-name)}
@@ -46,7 +51,6 @@
         (cli/parse-opts args global-opts-specs :in-order true)]
     (cond
       errors {:err-msg (str/join "\n" errors)}
-      (= (count arguments) 0) {:err-msg exit-message-no-command}
       :else {:global-opts options
              :cmd-name (first arguments)
              :cmd-args (rest arguments)})))
@@ -58,11 +62,16 @@
   :args-specs -> a parse-opts spec for this command
   :required-keys -> an array of keys that must be in the parsed arguments list"
   [args {args-specs :args-specs required-keys :required-keys}]
-  (let [{:keys [options arguments errors]} (cli/parse-opts args args-specs)
+  (let [args-specs-with-help (cons ["-h" "--help"] args-specs)
+        {:keys [options arguments errors]} (cli/parse-opts args args-specs-with-help)
         missing-keys (filter #((comp not contains?) options %) required-keys)]
+
     (cond
       errors
       {:err-msg (str/join "\n" errors)}
+
+      (= {:help true} options)
+      {:cmd-opts options}
 
       (-> missing-keys count (> 0))
       {:err-msg (->> missing-keys (map name) str/join (format "Missing options: %s"))}

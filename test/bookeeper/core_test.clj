@@ -33,16 +33,6 @@
 ;;
 ;; Tests
 ;;
-;; !!!! TODO -> move to helpers test
-(deftest test-getenv-or-error
-  (testing "Returns when getenv returns"
-    (with-redefs [getenv (constantly "hola")]
-      (is (= (getenv-or-error "a") "hola"))))
-  (testing "Throws error if getenv returns nil"
-    (with-redefs [getenv (constantly nil)]
-      (is (thrown? RuntimeException (getenv-or-error "a"))))))
-
-;; !!!! TODO -> move to helpers test
 (deftest test-get-handler
   (testing "Base"
     (is (= (get-handler "cmd1" [{:name "cmd1" :handler :SENTINEL}])

@@ -21,3 +21,11 @@
     (is (= {} (replace-underscore-in-keys {})))
     (is (= {:a 1} (replace-underscore-in-keys {:a 1})))
     (is (= {:a-b "a"} (replace-underscore-in-keys {:a_b "a"})))))
+
+(deftest test-getenv-or-error
+  (testing "Returns when getenv returns"
+    (with-redefs [getenv (constantly "hola")]
+      (is (= (getenv-or-error "a") "hola"))))
+  (testing "Throws error if getenv returns nil"
+    (with-redefs [getenv (constantly nil)]
+      (is (thrown? RuntimeException (getenv-or-error "a"))))))

@@ -20,7 +20,6 @@
 ;;
 ;; Main
 ;;
-;; !!!! TODO -> Add --help
 (def main-cmd-specs
   "An array of specifications for commands.
   Every item in the array must have:
@@ -52,7 +51,6 @@
 
    {:name          "read-book"
     :args-specs    [["-t" "--book-title BOOK_TITLE" "Book title"]
-                    ;; !!!! TODO -> Warn if date is wrong!
                     ["-d" "--date DATE" "Date"
                      :parse-fn str-to-date]
                     ["-u" "--duration DURATION" "Duration"

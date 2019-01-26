@@ -3,6 +3,8 @@
             [bookeeper.core :refer :all]
             [bookeeper.helpers :refer :all]
             [bookeeper.db :refer :all]
+            [bookeeper.serializers :refer [book->edn edn->book
+                                           reading-session->edn edn->reading-session]]
             [clojure.string :as str]
             [clojure.tools.cli :as cli]
             [java-time]
@@ -76,6 +78,35 @@
   (testing "Base"
     (is (= (query-all-books-sql) ["SELECT * FROM books"]))))
 
+(deftest test-query-books-handler
+  (testing "Calls doprint with serialized books sorted"
+    (let [doprint-arg (atom nil)
+          books [{:id 2 :title "B"} {:id 1 :title "A"}]]
+      (with-redefs [doprint #(reset! doprint-arg %)
+                    query-all-books (constantly books)]
+        (query-books-handler {}))
+      (is (= (-> books
+                 (#(sort-by :title %))
+                 (#(map book->edn %))
+                 (#(into [] %)))
+             @doprint-arg)))))
+
+(deftest test-query-reading-sessions-handler
+  (testing "Calls doprint with serialized sessions"
+    (let [doprint-arg (atom nil)
+          sessions [{:id 1 :date (java-time/local-date 2019 1 29) :duration 12
+                     :book_id 2}
+                    {:id 2 :date (java-time/local-date 2019 3 2) :duration 22
+                     :book {:id 3 :title "My Book"}}]]
+          (with-redefs [doprint #(reset! doprint-arg %)
+                        query-all-reading-sessions (constantly sessions)]
+            (query-reading-sessions-handler {}))
+          (is (= (-> sessions
+                     (#(sort-by :date %))
+                     reverse
+                     (#(map reading-session->edn %))
+                     (#(into [] %)))
+                 @doprint-arg)))))
   
 (deftest test-query-all-books
   (testing "Makes correcy query"
@@ -175,37 +206,6 @@
                                         :book {:id 13}
                                         :page-count 40})))))
 
-(deftest test-book-to-repr
-
-  (testing "Base (no page-count)"
-    (is (= (book-to-repr {:id 12 :title "A book title"})
-           "[12] [A book title] []")))
-
-  (testing "Base (w/ page-count"
-    (is (= (book-to-repr {:id 12 :title "A" :page-count 23})
-           "[12] [A] [23]"))))
-
-(deftest test-reading-session-to-repr
-
-  (testing "Base without page_count"
-    (is (= "[1993-11-23] [2] [444] []"
-           (reading-session-to-repr {:date (java-time/local-date 1993 11 23)
-                                     :book_id 2
-                                     :duration 444}))))
-
-  (testing "Base with page_count"
-    (is (= "[1998-02-03] [4] [11] [2]"
-           (reading-session-to-repr {:date (java-time/local-date 1998 2 3)
-                                     :book_id 4
-                                     :duration 11
-                                     :page-count 2}))))
-
-  (testing "When book parsed"
-    (is (= "[2017-01-02] [My Book] [120] []"
-           (reading-session-to-repr {:date (java-time/local-date 2017 1 2)
-                                     :book {:title "My Book"}
-                                     :duration 120})))))
-
 (deftest test-with-capturing-user-exceptions
   (testing "Prints :user-err-msg if :capture-for-user is true"
     (let [called-args (atom nil)
@@ -261,7 +261,7 @@
                              "--date" "2018-01-01"
                              "--duration" "210")))]
       (is (= (count printted) 1))
-      (is (str/starts-with? (first printted) "Book not found")))))
+      (is (= (first printted) "Book not found: {:title \"djskald\"}")))))
 
 (deftest test-functional-time-spent
   (testing "Calls time-spent-handler"
@@ -283,9 +283,12 @@
 
   (testing "Calling query books from main"
     (with-redefs [exit (fn [_ msg] (doprint msg))]
-      (let [result (-> (extract-doprint-from (-main "query-books")) sort)
-            expect (->> (query-all-books) (map book-to-repr) sort)]
-        (is (= result expect))))))
+      (let [result (-> (extract-doprint-from (-main "query-books")) first)
+            expect (->> (query-all-books)
+                        (map book->edn)
+                        (sort-by :title)
+                        (into []))]
+        (is (= expect result))))))
 
 (defn clear-books-and-reading-sessions []
   (run! #(-> {:delete-from %} sql/format execute!) [:books :reading-sessions]))
@@ -301,12 +304,14 @@
         ;; The user adds a read-book session
         (-main "read-book"
                "--book-title" title
-               "--date" (date-to-str date)
+               "--date" (date->str date)
                "--duration" (str duration))
         ;; And sees it when he queries
         (let [resp (extract-doprint-from (-main "query-reading-sessions"))]
           (is (= 1 (count resp)))
-          (is (str/starts-with? (first resp) (str "[" (date-to-str date) "]"))))))))
+          (is (= [{:id 1 :book {:id 1 :title title} :date date :duration duration
+                   :page-count nil}]
+                 (-> resp first (#(map edn->reading-session %))))))))))
 
 (deftest test-functional-add-and-read-book
   (testing "Adds two new books"
@@ -319,13 +324,14 @@
         (-main "add-book" "--title" title)
         ;; And sees it in the output when querying for books
         (let [query-books-prints (extract-doprint-from (-main "query-books"))]
-          (is (some #(.contains % title) query-books-prints))))
+          (is (some #(= title (:title %)) (first query-books-prints)))))
       ;; Adds a second book with page count
-      (let [title "Clojure for the brave and true" page-count "630"]
-        (-main "add-book" "--title" title "--page-count" page-count)
+      (let [title "Clojure for the brave and true" page-count 630]
+        (-main "add-book" "--title" title "--page-count" (str page-count))
         (let [query-books-print (extract-doprint-from (-main "query-books"))]
-          (is (some #(.contains % title) query-books-print))
-          (is (some #(.contains % page-count) query-books-print))))))
+          (is (some (fn [x] (and (= (:title x) title)
+                                 (= (:page-count x) page-count)))
+                    (first query-books-print)))))))
 
   (testing "Adds and reads a new book"
     ;; Clear books from db
@@ -340,7 +346,7 @@
           ;; Then add two readings
           (run!
            #(-main "read-book" "--book-title" title
-                   "--date" (date-to-str date)
+                   "--date" (date->str date)
                    "--duration" (str %))
            durations))
         ;; Check it was read
@@ -363,8 +369,9 @@
     (with-redefs [exit #(doprint %2)]
       (let [printted (extract-doprint-from (-main "query-reading-sessions"))]
         (is (= (count printted) 1))
-        ;; Ends with [20], number of page-count
-        (is (str/ends-with? (first printted) "[20]"))))))
+        (is (= [{:id 1 :book {:id 1 :title "A"} :date (str->date "2018-01-01")
+                 :duration 120 :page-count 20}]
+               (-> printted first (#(map edn->reading-session %)))))))))
 
 (deftest test-functional-help
   (testing "User calls --help to see the available commands"

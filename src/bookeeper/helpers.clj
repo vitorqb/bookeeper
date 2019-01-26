@@ -7,9 +7,9 @@
 ;; System Helpers
 ;;
 (defn doprint
+  "Main function used to print. Call println if x is string else pprint"
   [x]
-  "Wrapper around print (mainly for test)"
-  (println x))
+  (if (string? x) (println x) (clojure.pprint/pprint x)))
 
 (defn getenv
   "Wraps System/getenv for testing"
@@ -34,12 +34,12 @@
   "The default date-format to use (as of java-time/format)"
   "yyyy-MM-dd")
 
-(defn date-to-str
+(defn date->str
   "Converts a java-time/local-date to str."
   [x]
   (java-time/format default-date-format x))
 
-(defn str-to-date
+(defn str->date
   "Converts a string in default-date-format to a date"
   [x]
   (java-time/local-date default-date-format x))

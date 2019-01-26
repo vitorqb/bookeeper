@@ -2,6 +2,7 @@
   (:gen-class)
   (:require [clojure.string :as str]
             [bookeeper.cli-parser :refer [parse-args]]
+            [bookeeper.serializers :refer [book->edn reading-session->edn]]
             [bookeeper.helpers :refer :all]
             [bookeeper.db :refer :all]
             [honeysql.core :as sql]
@@ -52,7 +53,7 @@
    {:name          "read-book"
     :args-specs    [["-t" "--book-title BOOK_TITLE" "Book title"]
                     ["-d" "--date DATE" "Date"
-                     :parse-fn str-to-date]
+                     :parse-fn str->date]
                     ["-u" "--duration DURATION" "Duration"
                      :parse-fn #(Integer/parseInt %)]
                     ["-p" "--page-count PAGE_COUNT" "Page count"]]
@@ -74,7 +75,6 @@
       (reverse)
       (->> (str/join "\n"))))
   
-
 (defn make-help-msg
   "Returns a string that is a help message for the user.
   cmd-specs -> An array of command specs (like main-cmd-specs)"
@@ -136,14 +136,23 @@
         2 (throw-err "Multiple handlers found for %s")
         1 (-> filtered first :handler)))))
 
-(defn query-books-handler [{}]
-  (->> (query-all-books) (map book-to-repr) sort (run! doprint)))
+(defn query-books-handler
+  "Queries for all bokos in the db, serializes them and prints"
+  [{}]
+  (->> (query-all-books)
+       (sort-by :title)
+       (map book->edn)
+       (into [])
+       doprint))
 
 (defn query-reading-sessions-handler [{}]
+  "Queries for all reading sessions in the db, serializes them and prints"
   (->> (query-all-reading-sessions [:book])
-       (map reading-session-to-repr)
-       sort
-       (run! doprint)))
+       (sort-by :date)
+       reverse
+       (map reading-session->edn)
+       (into [])
+       doprint))
 
 (def add-book-handler #(create-book %))
 
@@ -200,7 +209,6 @@
 
 (def delete-book #(-> % delete-book-sql execute!))
 
-;; !!!! TODO -> generic-query-all?
 (def query-all-books-sql #(-> {:select :* :from :books} sql/build sql/format))
 (defn query-all-books
   []
@@ -235,7 +243,7 @@
    (let [bring-books-p (some #{:book} bring-related)]
      (-> (query-all-reading-sessions-sql bring-related)
          query
-         (->> (map #(update % :date str-to-date)))
+         (->> (map #(update % :date str->date)))
          (cond-> bring-books-p
            (->> (map #(move-in % [:book_id] [:book :id]))
                 (map #(move-in % [:book_title] [:book :title]))))
@@ -250,26 +258,6 @@
       sql/format))
 
 (def create-reading-session #(-> % create-reading-session-sql execute!))
-
-;; !!!! TODO -> Returns as clojure map
-(defn book-to-repr
-  [{:keys [id title page-count]}]
-  (->> [id title page-count]
-       (map #(or % ""))
-       (apply format "[%s] [%s] [%s]")))
-
-;; !!!! TODO -> Returns as clojure map
-(defn reading-session-to-repr
-  "Prints a reading-session.
-  If the entire book is parsed, print the book title.
-  If only the id is parsed, prints the id only"
-  [{:keys [date book book_id duration page-count]}]
-  (let [book-title (and book (:title book))]
-    (format "[%s] [%s] [%s] [%s]"
-            (date-to-str date)
-            (or book-title book_id)
-            duration
-            (or page-count ""))))
 
 (defn get-time-spent-query
   "Returns a query withthe time spent for a book"
@@ -295,4 +283,4 @@
 ;;
 (extend-protocol honeysql.format/ToSql
   LocalDate
-  (to-sql [v] (honeysql.format/to-sql (date-to-str v))))
+  (to-sql [v] (honeysql.format/to-sql (date->str v))))
